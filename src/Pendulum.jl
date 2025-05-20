@@ -11,7 +11,7 @@ export PendulumEnv, PendulumProblem
     torque::Float32 = 0.0f0
     mass::Float32 = 1.0f0
     length::Float32 = 1.0f0
-    gravity::Float32 = 9.81f0
+    gravity::Float32 = 10f0
     dt::Float32 = 0.01f0
 end
 
@@ -26,7 +26,7 @@ mutable struct PendulumEnv <: AbstractEnv
         if isnothing(problem)
             problem = PendulumProblem(; kwargs...)
         end
-        
+
         action_space = UniformBox(Float32, -2.0f0, 2.0f0, (1,))
         observation_space = UniformBox(Float32, -1f0, 1f0, (3,))
         env = new(problem, action_space, observation_space, max_steps, 0)
@@ -46,7 +46,7 @@ function reset!(problem::PendulumProblem, rng::AbstractRNG=default_rng())
 end
 
 function pendulum_rewards(theta, velocity, torque)
-    return -theta^2 , -0.1f0*velocity^2 , -0.001f0*torque^2
+    return -theta^2, -0.1f0 * velocity^2, -0.001f0 * torque^2
 end
 
 function reward(env::PendulumEnv)
@@ -56,12 +56,11 @@ function reward(env::PendulumEnv)
     return reward
 end
 
-function DRiL.act!(env::PendulumEnv, action::AbstractArray{Float32, 1})
+function DRiL.act!(env::PendulumEnv, action::AbstractArray{Float32,1})
     DRiL.act!(env, action[1])
 end
 
 function DRiL.act!(env::PendulumEnv, action::Float32)
-
     pend = env.problem
     pend.torque = action
     g = pend.gravity
@@ -69,7 +68,7 @@ function DRiL.act!(env::PendulumEnv, action::Float32)
     L = pend.length
     dt = pend.dt
     theta = pend.theta
-    pend.velocity += ( (3*g/2L)*sin(theta) + 3/(m*L^2)*pend.torque ) * dt
+    pend.velocity += ((3 * g / 2L) * sin(theta) + 3 / (m * L^2) * pend.torque) * dt
     pend.velocity = clamp(pend.velocity, -8.0f0, 8.0f0)
     pend.theta += pend.velocity * dt
     pend.theta = mod(pend.theta + π, 2π) - π
