@@ -3,7 +3,18 @@ uuid = "a1069ede-d5f9-41a5-87b2-adf4ef867b86"
 authors = ["Kristian Holme <holme.kristian@gmail.com> and contributors"]
 version = "0.0.1-DEV"
 
+[deps]
+DRiL = "49b37b9d-a8e6-4364-9144-4677bcb8a7f0"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+
+[weakdeps]
+Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+
+[extensions]
+PendulumMakieExt = "Makie"
+
 [compat]
+Random = "1.11.0"
 julia = "1.10"
 
 [extras]
