@@ -5,6 +5,9 @@ using Random
 
 export PendulumEnv, PendulumProblem
 
+include("utils.jl")
+
+
 @kwdef mutable struct PendulumProblem
     theta::Float32 = rand(Float32) * 2π
     velocity::Float32 = (rand(Float32) * 16.0f0 - 8.0f0)
@@ -52,7 +55,8 @@ end
 function reward(env::PendulumEnv)
     theta = env.problem.theta
     velocity = env.problem.velocity
-    reward = sum(pendulum_rewards(theta, velocity, env.problem.torque))
+    torque = env.problem.torque
+    reward = sum(pendulum_rewards(theta, velocity, torque))
     return reward
 end
 
@@ -88,5 +92,18 @@ DRiL.truncated(env::PendulumEnv) = env.step >= env.max_steps
 DRiL.action_space(env::PendulumEnv) = env.action_space
 DRiL.observation_space(env::PendulumEnv) = env.observation_space
 DRiL.get_info(env::PendulumEnv) = Dict("step" => env.step)
+
+
+
+function plot_pendulum end
+function live_pendulum_viz end
+function interactive_viz end
+function plot_trajectory end
+function plot_trajectory_interactive end
+function animate_trajectory_video end
+export plot_pendulum, live_pendulum_viz, interactive_viz, plot_trajectory,
+    plot_trajectory_interactive, animate_trajectory_video
+
+include("utils.jl")
 
 end

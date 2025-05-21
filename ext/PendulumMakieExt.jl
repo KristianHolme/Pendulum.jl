@@ -3,15 +3,16 @@ module PendulumMakieExt
 using Makie
 using Pendulum
 
+
 function _pendulum_coords(L, θ)
     return Point2f(-L * sin(θ), L * cos(θ))
 end
 
 function _torque_arrow_coords(L, θ, τ)
     # Arrow is centered at the midpoint of the pendulum
-    mid_x, mid_y = _pendulum_coords(L/2, θ)
+    mid_x, mid_y = _pendulum_coords(L / 2, θ)
     # Arrow direction: perpendicular to pendulum
-    perp_angle = θ + π/2 * sign(τ)
+    perp_angle = θ + π / 2 * sign(τ)
     # Arrow length scales with torque, now up to 0.8*L
     arrow_length = 0.8 * L * clamp(abs(τ) / 2, 0, 1)
     dx = arrow_length * -sin(perp_angle)
@@ -20,12 +21,12 @@ function _torque_arrow_coords(L, θ, τ)
     (; mid_x, mid_y, dx, dy, color)
 end
 
-function plot_pendulum(problem::PendulumProblem)
+function Pendulum.plot_pendulum(problem::PendulumProblem)
     L = problem.length
     θ = problem.theta
     τ = problem.torque
-    fig = Figure(size = (400, 400))
-    ax = Axis(fig[1, 1], aspect = 1)
+    fig = Figure(size=(400, 400))
+    ax = Axis(fig[1, 1], aspect=1)
     # Pendulum
     pt = _pendulum_coords(L, θ)
     lines!(ax, [Point2f(0.0, 0.0), pt], linewidth=4, color=:black)
@@ -36,17 +37,17 @@ function plot_pendulum(problem::PendulumProblem)
         arr = _torque_arrow_coords(L, θ, τ)
         arrows!(ax, [Point2f(arr.mid_x, arr.mid_y)], [Vec2f(arr.dx, arr.dy)], color=arr.color, arrowsize=0.2)
     end
-    xlims!(ax, -L-0.2, L+0.2)
-    ylims!(ax, -L-0.2, L+0.2)
+    xlims!(ax, -L - 0.2, L + 0.2)
+    ylims!(ax, -L - 0.2, L + 0.2)
     fig
 end
 
-function live_pendulum_viz(problem::PendulumProblem)
+function Pendulum.live_pendulum_viz(problem::PendulumProblem)
     θ = Observable(problem.theta)
     τ = Observable(problem.torque)
     L = problem.length
-    fig = Figure(size = (400, 400))
-    ax = Axis(fig[1, 1], aspect = 1)
+    fig = Figure(size=(400, 400))
+    ax = Axis(fig[1, 1], aspect=1)
     pendulum_line = lines!(ax, @lift([Point2f(0.0, 0.0), _pendulum_coords(L, $θ)]), linewidth=4, color=:black)
     scatter!(ax, [0.0], [0.0], color=:red, markersize=15)
     mass_scatter = scatter!(ax, @lift(_pendulum_coords(L, $θ)), color=:blue, markersize=20)
@@ -55,9 +56,9 @@ function live_pendulum_viz(problem::PendulumProblem)
         lift((θ, τ) -> [Point2f(_torque_arrow_coords(L, θ, τ).mid_x, _torque_arrow_coords(L, θ, τ).mid_y)], θ, τ),
         lift((θ, τ) -> [Vec2f(_torque_arrow_coords(L, θ, τ).dx, _torque_arrow_coords(L, θ, τ).dy)], θ, τ),
         color=lift((θ, τ) -> _torque_arrow_coords(L, θ, τ).color, θ, τ), arrowsize=0.2)
-    xlims!(ax, -L-0.2, L+0.2)
-    ylims!(ax, -L-0.2, L+0.2)
-    display(fig)
+    xlims!(ax, -L - 0.2, L + 0.2)
+    ylims!(ax, -L - 0.2, L + 0.2)
+    # display(fig)
     update_viz! = (problem) -> begin
         θ[] = problem.theta
         τ[] = problem.torque
@@ -65,7 +66,7 @@ function live_pendulum_viz(problem::PendulumProblem)
     return θ, τ, fig, update_viz!
 end
 
-function interactive_viz(env::PendulumEnv)
+function Pendulum.interactive_viz(env::PendulumEnv)
     θ = Observable(env.problem.theta)
     τ = Observable(env.problem.torque)
     dt = Observable(env.problem.dt)
@@ -74,8 +75,8 @@ function interactive_viz(env::PendulumEnv)
     live = Observable(true)
     L = env.problem.length
 
-    fig = Figure(size = (500, 600))
-    ax = Axis(fig[1, 1], aspect = 1)
+    fig = Figure(size=(500, 600))
+    ax = Axis(fig[1, 1], aspect=1)
     pendulum_line = lines!(ax, @lift([Point2f(0.0, 0.0), _pendulum_coords(L, $θ)]), linewidth=4, color=:black)
     scatter!(ax, [0.0], [0.0], color=:red, markersize=15)
     mass_scatter = scatter!(ax, @lift(_pendulum_coords(L, $θ)), color=:blue, markersize=20)
@@ -83,20 +84,20 @@ function interactive_viz(env::PendulumEnv)
         lift((θ, τ) -> [Point2f(_torque_arrow_coords(L, θ, τ).mid_x, _torque_arrow_coords(L, θ, τ).mid_y)], θ, τ),
         lift((θ, τ) -> [Vec2f(_torque_arrow_coords(L, θ, τ).dx, _torque_arrow_coords(L, θ, τ).dy)], θ, τ),
         color=lift((θ, τ) -> _torque_arrow_coords(L, θ, τ).color, θ, τ), arrowsize=0.2)
-    xlims!(ax, -L-0.2, L+0.2)
-    ylims!(ax, -L-0.2, L+0.2)
+    xlims!(ax, -L - 0.2, L + 0.2)
+    ylims!(ax, -L - 0.2, L + 0.2)
 
-    rew_ax = Axis(fig[1,2], title="Reward", limits=@lift((nothing, ($min_rew, 0))))
+    rew_ax = Axis(fig[1, 2], title="Reward", limits=@lift((nothing, ($min_rew, 0))))
     rew_bar = barplot!(rew_ax, 1, rew)
     colsize!(fig.layout, 2, Relative(0.3))
 
     # SliderGrid for torque and dt
     sg = SliderGrid(fig[2, 1],
-        (label = "Torque", range = -2.0:0.01:2.0, startvalue = env.problem.torque),
-        (label = "dt", range = 0.0001:0.0001:0.01, startvalue = env.problem.dt),
-        width = Relative(0.9)
+        (label="Torque", range=-2.0:0.01:2.0, startvalue=env.problem.torque),
+        (label="dt", range=0.0001:0.0001:0.01, startvalue=env.problem.dt),
+        width=Relative(0.9)
     )
-    live_button = Button(fig[3, 1], label = "Stop", tellwidth = false)
+    live_button = Button(fig[3, 1], label="Stop", tellwidth=false)
     on(live_button.clicks) do n
         live[] = !live[]
     end
@@ -125,24 +126,24 @@ function interactive_viz(env::PendulumEnv)
     return θ, τ, dt, fig, sg
 end
 
-function plot_trajectory(env::PendulumEnv, observations::AbstractArray, actions::AbstractArray, rewards::AbstractArray)
+function Pendulum.plot_trajectory(env::PendulumEnv, observations::AbstractArray, actions::AbstractArray, rewards::AbstractArray)
     fig = Figure(size=(800, 600))
     n = length(observations)
     xs = getindex.(observations, 1)
     ys = getindex.(observations, 2)
     vels = getindex.(observations, 3)
     scaled_vels = vels .* 8
-    thetas = angle.(xs, ys)
+    thetas = Pendulum.angle.(xs, ys)
 
     actions = vec(stack(actions))
     torques = actions .* 2
 
-    individual_rewards = pendulum_rewards.(thetas[2:end], scaled_vels[2:end], torques[1:end-1])
+    individual_rewards = Pendulum.pendulum_rewards.(thetas[2:end], scaled_vels[2:end], torques[1:end-1])
     theta_rewards = getindex.(individual_rewards, 1)
     vel_rewards = getindex.(individual_rewards, 2)
     torque_rewards = getindex.(individual_rewards, 3)
 
-    ax_angle = Axis(fig[1, 1], title="Angle", limits=((nothing),(-π, π)))
+    ax_angle = Axis(fig[1, 1], title="Angle", limits=((nothing), (-π, π)))
     angle_plot = scatterlines!(ax_angle, thetas)
     ax_xy = Axis(fig[1, 2], title="XY")
     x_plot = scatterlines!(ax_xy, xs, label="x")
@@ -159,12 +160,12 @@ function plot_trajectory(env::PendulumEnv, observations::AbstractArray, actions:
     theta_rew_plot = scatterlines!(ax_rew, theta_rewards, label="Theta")
     vel_rew_plot = scatterlines!(ax_rew, vel_rewards, label="Velocity")
     torque_rew_plot = scatterlines!(ax_rew, torque_rewards, label="Torque")
-    axislegend(ax_rew)
+    axislegend(ax_rew, location=:rb)
 
     fig
 end
 
-function plot_trajectory_interactive(env::PendulumEnv, observations::AbstractArray, actions::AbstractArray, rewards::AbstractArray)
+function Pendulum.plot_trajectory_interactive(env::PendulumEnv, observations::AbstractArray, actions::AbstractArray, rewards::AbstractArray)
     # Process actions: scale by 2 and ensure they are a flat Vector{Float32}
     local processed_actions_scaled::Vector{Float32}
     if !isempty(actions) && actions[1] isa AbstractArray
@@ -191,13 +192,13 @@ function plot_trajectory_interactive(env::PendulumEnv, observations::AbstractArr
     # Create a PendulumProblem instance for the initial visualization
     # Velocity and dt from env.problem are used, or could be set to defaults if not relevant for viz
     problem_for_viz = PendulumProblem(
-        theta    = Float32(initial_theta),
-        velocity = 0.0f0, # Not directly used by live_pendulum_viz for display logic
-        torque   = Float32(initial_torque_scaled),
-        mass     = env.problem.mass,
-        length   = env.problem.length,
-        gravity  = env.problem.gravity,
-        dt       = env.problem.dt # Also not directly used by display but part of struct
+        theta=Float32(initial_theta),
+        velocity=0.0f0, # Not directly used by live_pendulum_viz for display logic
+        torque=Float32(initial_torque_scaled),
+        mass=env.problem.mass,
+        length=env.problem.length,
+        gravity=env.problem.gravity,
+        dt=env.problem.dt # Also not directly used by display but part of struct
     )
 
     # Get the live visualization components from live_pendulum_viz
@@ -213,11 +214,12 @@ function plot_trajectory_interactive(env::PendulumEnv, observations::AbstractArr
     # Ensure there's a layout cell available or create one.
     # By default, fig from live_pendulum_viz is a 1x1 grid for the axis.
     # We can add to fig[2,1]. Makie should handle expanding the layout.
-    sg = SliderGrid(fig[2,1],
+    display(fig)
+    sg = SliderGrid(fig[2, 1],
         (label="Step", range=1:num_steps, startvalue=1)
     )
     trajectory_slider = sg.sliders[1]
-    
+
     # Label(fig[2, 1, Top()], "Trajectory Step", valign = :bottom, padding = (0, 0, 5, 0)) # Alternative way to add label
 
     on(trajectory_slider.value) do step_idx
@@ -226,13 +228,13 @@ function plot_trajectory_interactive(env::PendulumEnv, observations::AbstractArr
         current_torque_val_scaled = processed_actions_scaled[step_idx]
 
         updated_problem = PendulumProblem(
-            theta    = Float32(current_theta),
-            velocity = 0.0f0, # As per requirement, velocity from trajectory not used here
-            torque   = Float32(current_torque_val_scaled),
-            mass     = env.problem.mass,
-            length   = env.problem.length,
-            gravity  = env.problem.gravity,
-            dt       = env.problem.dt
+            theta=Float32(current_theta),
+            velocity=0.0f0, # As per requirement, velocity from trajectory not used here
+            torque=Float32(current_torque_val_scaled),
+            mass=env.problem.mass,
+            length=env.problem.length,
+            gravity=env.problem.gravity,
+            dt=env.problem.dt
         )
         update_viz!(updated_problem)
     end
@@ -241,6 +243,57 @@ function plot_trajectory_interactive(env::PendulumEnv, observations::AbstractArr
     return fig, trajectory_slider
 end
 
-export plot_pendulum, live_pendulum_viz, interactive_viz, plot_trajectory, plot_trajectory_interactive
+function Pendulum.animate_trajectory_video(env::PendulumEnv,
+    observations::AbstractArray,
+    actions::AbstractArray,
+    output_filename::AbstractString;
+    target_fps::Int=25
+)
+    # Use actions directly (assume already scaled)
+    if actions[1] isa AbstractArray
+        actions = first.(actions)
+    end
+    num_steps = length(observations)
+    if num_steps == 0
+        error("Observations array cannot be empty.")
+    end
+    if num_steps != length(actions)
+        error("Observations and processed actions must have the same length. Original actions length: $(length(actions)), Processed actions length: $(length(actions))")
+    end
+    # Initial state for the live visualization
+    initial_obs = observations[1]
+    initial_theta = atan(initial_obs[2], initial_obs[1])
+    initial_torque = actions[1]
+    problem_for_viz = env.problem
+    problem_for_viz.theta = initial_theta
+    problem_for_viz.torque = initial_torque
+    problem_for_viz.velocity = 0.0f0
 
+    _, _, fig, update_viz! = live_pendulum_viz(problem_for_viz)
+    # Animation function
+    function frame_update(step_idx)
+        current_obs = observations[step_idx]
+        current_theta = atan(current_obs[2], current_obs[1])
+        current_torque = actions[step_idx]
+        updated_problem = PendulumProblem(
+            theta=Float32(current_theta),
+            velocity=0.0f0,
+            torque=Float32(current_torque),
+            mass=env.problem.mass,
+            length=env.problem.length,
+            gravity=env.problem.gravity,
+            dt=env.problem.dt
+        )
+        update_viz!(updated_problem)
+    end
+    # Use dt from env.problem to set frame dropping for real-time video
+    dt = env.problem.dt
+    steps_per_frame = max(1, round(Int, 1 / (target_fps * dt)))
+    frame_indices = 1:steps_per_frame:num_steps
+    Makie.record(fig, output_filename, frame_indices; framerate=target_fps) do step_idx
+        frame_update(step_idx)
+    end
+    return output_filename
 end
+
+end #module
