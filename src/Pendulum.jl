@@ -20,29 +20,31 @@ end
 
 mutable struct PendulumEnv <: AbstractEnv
     problem::PendulumProblem
-    action_space::UniformBox
-    observation_space::UniformBox
+    action_space::UniformBox{Float32}
+    observation_space::UniformBox{Float32}
     max_steps::Int
     step::Int
-    function PendulumEnv(; problem=nothing, max_steps::Int=200, kwargs...)
+    rng::Random.AbstractRNG
+    function PendulumEnv(; problem=nothing, max_steps::Int=200, rng::Random.AbstractRNG=Random.Xoshiro(), kwargs...)
         # Create a problem if not provided, using kwargs for its constructor
         if isnothing(problem)
             problem = PendulumProblem(; kwargs...)
         end
 
-        action_space = UniformBox(Float32, -2.0f0, 2.0f0, (1,))
-        observation_space = UniformBox(Float32, -1f0, 1f0, (3,))
-        env = new(problem, action_space, observation_space, max_steps, 0)
+        action_space = UniformBox{Float32}(-2.0f0, 2.0f0, (1,))
+        observation_space = UniformBox{Float32}(-1f0, 1f0, (3,))
+        env = new(problem, action_space, observation_space, max_steps, 0, rng)
         return env
     end
 end
 
-function DRiL.reset!(env::PendulumEnv, rng::AbstractRNG=Random.default_rng())
-    reset!(env.problem, rng)
+function DRiL.reset!(env::PendulumEnv)
+    # Use the environment's internal RNG
+    reset!(env.problem, env.rng)
     env.step = 0
 end
 
-function reset!(problem::PendulumProblem, rng::AbstractRNG=default_rng())
+function reset!(problem::PendulumProblem, rng::AbstractRNG)
     problem.theta = rand(rng, Float32) * 2π
     problem.velocity = (rand(rng, Float32) * 16.0f0 - 8.0f0)
     problem.torque = 0.0f0
@@ -103,7 +105,4 @@ function plot_trajectory_interactive end
 function animate_trajectory_video end
 export plot_pendulum, live_pendulum_viz, interactive_viz, plot_trajectory,
     plot_trajectory_interactive, animate_trajectory_video
-
-include("utils.jl")
-
 end
