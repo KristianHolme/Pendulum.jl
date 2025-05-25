@@ -9,13 +9,13 @@ include("utils.jl")
 
 
 @kwdef mutable struct PendulumProblem
-    theta::Float32 = rand(Float32) * 2π
-    velocity::Float32 = (rand(Float32) * 16.0f0 - 8.0f0)
+    theta::Float32 = rand(Float32) * 2π - π # in [-π, π]
+    velocity::Float32 = (rand(Float32) * 2.0f0 - 1.0f0) # in [-1, 1]
     torque::Float32 = 0.0f0
     mass::Float32 = 1.0f0
     length::Float32 = 1.0f0
     gravity::Float32 = 10f0
-    dt::Float32 = 0.01f0
+    dt::Float32 = 0.05f0
 end
 
 mutable struct PendulumEnv <: AbstractEnv
@@ -45,8 +45,8 @@ function DRiL.reset!(env::PendulumEnv)
 end
 
 function reset!(problem::PendulumProblem, rng::AbstractRNG)
-    problem.theta = rand(rng, Float32) * 2π
-    problem.velocity = (rand(rng, Float32) * 16.0f0 - 8.0f0)
+    problem.theta = rand(rng, Float32) * 2π - π  # [-π, π] to match Gymnasium
+    problem.velocity = (rand(rng, Float32) * 2.0f0 - 1.0f0)  # [-1, 1] to match Gymnasium
     problem.torque = 0.0f0
 end
 
