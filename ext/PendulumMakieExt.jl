@@ -324,7 +324,7 @@ function Pendulum.plot_trajectory_interactive(env::PendulumEnv, observations::Ab
                         if auto_playing[]  # Check again after sleep
                             # Update slider position and visualization
                             trajectory_slider.value[] = current_step  # Force Observable update
-                            notify!(trajectory_slider.value)  # Ensure slider widget updates visually
+                            notify(trajectory_slider)  # Ensure slider widget updates visually
                             update_step!(current_step)
                             current_step += 1
                             
@@ -364,7 +364,7 @@ function Pendulum.plot_trajectory_interactive(env::PendulumEnv, observations::Ab
         if !auto_playing[]  # Only allow single steps when not auto-playing
             current_step = min(trajectory_slider.value[] + 1, num_steps)
             trajectory_slider.value[] = current_step
-            notify!(trajectory_slider.value)
+            notify(trajectory_slider)
             update_step!(current_step)
         end
     end
@@ -373,7 +373,7 @@ function Pendulum.plot_trajectory_interactive(env::PendulumEnv, observations::Ab
     on(reset_button.clicks) do n
         if !auto_playing[]  # Only allow reset when not auto-playing
             trajectory_slider.value[] = 1
-            notify!(trajectory_slider.value)
+            notify(trajectory_slider)
             update_step!(1)
         end
     end
