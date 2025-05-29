@@ -20,8 +20,8 @@ end
 
 mutable struct PendulumEnv <: AbstractEnv
     problem::PendulumProblem
-    action_space::UniformBox{Float32}
-    observation_space::UniformBox{Float32}
+    action_space::Box{Float32}
+    observation_space::Box{Float32}
     max_steps::Int
     step::Int
     rng::Random.AbstractRNG
@@ -31,8 +31,8 @@ mutable struct PendulumEnv <: AbstractEnv
             problem = PendulumProblem(; kwargs...)
         end
 
-        action_space = UniformBox{Float32}(-2.0f0, 2.0f0, (1,))
-        observation_space = UniformBox{Float32}(-1f0, 1f0, (3,))
+        action_space = Box{Float32}([-2.0f0], [2.0f0])
+        observation_space = Box{Float32}([-1f0, -1f0, -8f0], [1f0, 1f0, 8f0])
         env = new(problem, action_space, observation_space, max_steps, 0, rng)
         return env
     end
@@ -45,8 +45,8 @@ function DRiL.reset!(env::PendulumEnv)
 end
 
 function reset!(problem::PendulumProblem, rng::AbstractRNG)
-    problem.theta = rand(rng, Float32) * 2π - π  # [-π, π] to match Gymnasium
-    problem.velocity = (rand(rng, Float32) * 2.0f0 - 1.0f0)  # [-1, 1] to match Gymnasium
+    problem.theta = rand(rng, Float32) * 2π - π  # [-π, π] 
+    problem.velocity = (rand(rng, Float32) * 2.0f0 - 1.0f0)  # [-1, 1] 
     problem.torque = 0.0f0
 end
 
@@ -85,8 +85,7 @@ end
 function DRiL.observe(env::PendulumEnv)
     x = cos(env.problem.theta)
     y = sin(env.problem.theta)
-    scaled_vel = env.problem.velocity / 8.0f0
-    return [x, y, scaled_vel]
+    return [x, y, env.problem.velocity]
 end
 
 DRiL.terminated(env::PendulumEnv) = false
@@ -95,14 +94,4 @@ DRiL.action_space(env::PendulumEnv) = env.action_space
 DRiL.observation_space(env::PendulumEnv) = env.observation_space
 DRiL.get_info(env::PendulumEnv) = Dict("step" => env.step)
 
-
-
-function plot_pendulum end
-function live_pendulum_viz end
-function interactive_viz end
-function plot_trajectory end
-function plot_trajectory_interactive end
-function animate_trajectory_video end
-export plot_pendulum, live_pendulum_viz, interactive_viz, plot_trajectory,
-    plot_trajectory_interactive, animate_trajectory_video
 end

@@ -1,0 +1,10 @@
+module ClassicControlEnvironmentsMakieExt
+
+using Makie
+using ClassicControlEnvironments
+using DRiL
+include("PendulumMakieExt.jl")
+
+
+
+end #module

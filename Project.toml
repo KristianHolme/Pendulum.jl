@@ -1,6 +1,6 @@
-name = "Pendulum"
+name = "ClassicControlEnvironments"
 uuid = "a1069ede-d5f9-41a5-87b2-adf4ef867b86"
-authors = ["Kristian Holme <holme.kristian@gmail.com> and contributors"]
+authors = ["Kristian Holme <holme.kristian@gmail.com>"]
 version = "0.0.1-DEV"
 
 [deps]
@@ -11,7 +11,7 @@ Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 
 [extensions]
-PendulumMakieExt = "Makie"
+ClassicControlEnvironmentsMakieExt = "Makie"
 
 [compat]
 Random = "1.11.0"

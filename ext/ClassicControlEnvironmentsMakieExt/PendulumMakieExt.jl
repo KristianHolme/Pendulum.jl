@@ -1,9 +1,3 @@
-module PendulumMakieExt
-
-using Makie
-using Pendulum
-using DRiL
-
 function _pendulum_coords(L, θ)
     return Point2f(-L * sin(θ), L * cos(θ))
 end
@@ -21,7 +15,7 @@ function _torque_arrow_coords(L, θ, τ)
     (; mid_x, mid_y, dx, dy, color)
 end
 
-function Pendulum.plot_pendulum(problem::PendulumProblem)
+function ClassicalControl.plot(problem::PendulumProblem)
     L = problem.length
     θ = problem.theta
     τ = problem.torque
@@ -42,7 +36,7 @@ function Pendulum.plot_pendulum(problem::PendulumProblem)
     fig
 end
 
-function Pendulum.live_pendulum_viz(problem::PendulumProblem)
+function ClassicalControl.live_viz(problem::PendulumProblem)
     θ = Observable(problem.theta)
     τ = Observable(problem.torque)
     L = problem.length
@@ -66,7 +60,7 @@ function Pendulum.live_pendulum_viz(problem::PendulumProblem)
     return θ, τ, fig, update_viz!
 end
 
-function Pendulum.interactive_viz(env::PendulumEnv)
+function ClassicalControl.interactive_viz(env::PendulumEnv)
     θ = Observable(env.problem.theta)
     τ = Observable(env.problem.torque)
     dt = Observable(env.problem.dt)
@@ -97,17 +91,17 @@ function Pendulum.interactive_viz(env::PendulumEnv)
         (label="dt", range=0.0001:0.0001:0.01, startvalue=env.problem.dt),
         width=Relative(0.9)
     )
-    
+
     # Control buttons for automatic stepping
     button_grid = GridLayout(fig[3, 1])
     start_button = Button(button_grid[1, 1], label="Start Auto", tellwidth=false)
     stop_button = Button(button_grid[1, 2], label="Stop Auto", tellwidth=false)
     step_button = Button(button_grid[1, 3], label="Single Step", tellwidth=false)
-    
+
     # Button states
     auto_running = Observable(false)
     current_task = Ref{Union{Task,Nothing}}(nothing)
-    
+
     torque_slider = sg.sliders[1]
     dt_slider = sg.sliders[2]
     on(torque_slider.value) do val
@@ -124,7 +118,7 @@ function Pendulum.interactive_viz(env::PendulumEnv)
             auto_running[] = true
             start_button.label = "Running..."
             start_button.buttoncolor = :lightgreen
-            
+
             # Start the automatic stepping task
             current_task[] = @async begin
                 try
@@ -147,7 +141,7 @@ function Pendulum.interactive_viz(env::PendulumEnv)
             end
         end
     end
-    
+
     # Stop button functionality
     on(stop_button.clicks) do n
         if auto_running[]
@@ -160,7 +154,7 @@ function Pendulum.interactive_viz(env::PendulumEnv)
             end
         end
     end
-    
+
     # Single step button functionality
     on(step_button.clicks) do n
         if !auto_running[]  # Only allow single steps when not auto-running
@@ -176,7 +170,7 @@ function Pendulum.interactive_viz(env::PendulumEnv)
     return θ, τ, dt, fig, sg, start_button, stop_button, step_button
 end
 
-function Pendulum.plot_trajectory(env::PendulumEnv, observations::AbstractArray, actions::AbstractArray, rewards::AbstractArray)
+function ClassicalControl.plot_trajectory(env::PendulumEnv, observations::AbstractArray, actions::AbstractArray, rewards::AbstractArray)
     fig = Figure(size=(800, 600))
     n = length(observations)
     xs = getindex.(observations, 1)
@@ -215,7 +209,7 @@ function Pendulum.plot_trajectory(env::PendulumEnv, observations::AbstractArray,
     fig
 end
 
-function Pendulum.plot_trajectory_interactive(env::PendulumEnv, observations::AbstractArray, actions::AbstractArray, rewards::AbstractArray)
+function ClassicalControl.plot_trajectory_interactive(env::PendulumEnv, observations::AbstractArray, actions::AbstractArray, rewards::AbstractArray)
     # Process actions: scale by 2 and ensure they are a flat Vector{Float32}
     local processed_actions_scaled::Vector{Float32}
     if !isempty(actions) && actions[1] isa AbstractArray
@@ -271,14 +265,14 @@ function Pendulum.plot_trajectory_interactive(env::PendulumEnv, observations::Ab
     )
     trajectory_slider = sg.sliders[1]
     speed_slider = sg.sliders[2]
-    
+
     # Control buttons for automatic trajectory playback
     button_grid = GridLayout(fig[3, 1])
     start_button = Button(button_grid[1, 1], label="Play", tellwidth=false)
     stop_button = Button(button_grid[1, 2], label="Pause", tellwidth=false)
     step_button = Button(button_grid[1, 3], label="Next Step", tellwidth=false)
     reset_button = Button(button_grid[1, 4], label="Reset", tellwidth=false)
-    
+
     # Button states
     auto_playing = Observable(false)
     current_task = Ref{Union{Task,Nothing}}(nothing)
@@ -314,7 +308,7 @@ function Pendulum.plot_trajectory_interactive(env::PendulumEnv, observations::Ab
             auto_playing[] = true
             start_button.label = "Playing..."
             start_button.buttoncolor = :lightgreen
-            
+
             # Start the automatic playback task
             current_task[] = @async begin
                 try
@@ -327,7 +321,7 @@ function Pendulum.plot_trajectory_interactive(env::PendulumEnv, observations::Ab
                             notify(trajectory_slider)  # Ensure slider widget updates visually
                             update_step!(current_step)
                             current_step += 1
-                            
+
                             # Stop at end of trajectory
                             if current_step > num_steps
                                 auto_playing[] = false
@@ -345,7 +339,7 @@ function Pendulum.plot_trajectory_interactive(env::PendulumEnv, observations::Ab
             end
         end
     end
-    
+
     # Stop/Pause button functionality
     on(stop_button.clicks) do n
         if auto_playing[]
@@ -358,7 +352,7 @@ function Pendulum.plot_trajectory_interactive(env::PendulumEnv, observations::Ab
             end
         end
     end
-    
+
     # Single step button functionality
     on(step_button.clicks) do n
         if !auto_playing[]  # Only allow single steps when not auto-playing
@@ -368,7 +362,7 @@ function Pendulum.plot_trajectory_interactive(env::PendulumEnv, observations::Ab
             update_step!(current_step)
         end
     end
-    
+
     # Reset button functionality
     on(reset_button.clicks) do n
         if !auto_playing[]  # Only allow reset when not auto-playing
@@ -382,7 +376,7 @@ function Pendulum.plot_trajectory_interactive(env::PendulumEnv, observations::Ab
     return fig, trajectory_slider, start_button, stop_button, step_button, reset_button
 end
 
-function Pendulum.animate_trajectory_video(env::PendulumEnv,
+function ClassicalControl.animate_trajectory_video(env::PendulumEnv,
     observations::AbstractArray,
     actions::AbstractArray,
     output_filename::AbstractString;
@@ -434,5 +428,3 @@ function Pendulum.animate_trajectory_video(env::PendulumEnv,
     end
     return output_filename
 end
-
-end #module
