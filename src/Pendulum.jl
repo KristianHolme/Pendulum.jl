@@ -1,13 +1,3 @@
-module Pendulum
-
-using DRiL
-using Random
-
-export PendulumEnv, PendulumProblem
-
-include("utils.jl")
-
-
 @kwdef mutable struct PendulumProblem
     theta::Float32 = rand(Float32) * 2π - π # in [-π, π]
     velocity::Float32 = (rand(Float32) * 2.0f0 - 1.0f0) # in [-1, 1]
@@ -93,5 +83,3 @@ DRiL.truncated(env::PendulumEnv) = env.step >= env.max_steps
 DRiL.action_space(env::PendulumEnv) = env.action_space
 DRiL.observation_space(env::PendulumEnv) = env.observation_space
 DRiL.get_info(env::PendulumEnv) = Dict("step" => env.step)
-
-end

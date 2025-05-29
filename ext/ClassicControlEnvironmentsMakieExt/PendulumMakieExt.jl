@@ -15,7 +15,7 @@ function _torque_arrow_coords(L, θ, τ)
     (; mid_x, mid_y, dx, dy, color)
 end
 
-function ClassicalControl.plot(problem::PendulumProblem)
+function ClassicControlEnvironments.plot(problem::PendulumProblem)
     L = problem.length
     θ = problem.theta
     τ = problem.torque
@@ -36,7 +36,7 @@ function ClassicalControl.plot(problem::PendulumProblem)
     fig
 end
 
-function ClassicalControl.live_viz(problem::PendulumProblem)
+function ClassicControlEnvironments.live_viz(problem::PendulumProblem)
     θ = Observable(problem.theta)
     τ = Observable(problem.torque)
     L = problem.length
@@ -60,7 +60,7 @@ function ClassicalControl.live_viz(problem::PendulumProblem)
     return θ, τ, fig, update_viz!
 end
 
-function ClassicalControl.interactive_viz(env::PendulumEnv)
+function ClassicControlEnvironments.interactive_viz(env::PendulumEnv)
     θ = Observable(env.problem.theta)
     τ = Observable(env.problem.torque)
     dt = Observable(env.problem.dt)
@@ -170,7 +170,7 @@ function ClassicalControl.interactive_viz(env::PendulumEnv)
     return θ, τ, dt, fig, sg, start_button, stop_button, step_button
 end
 
-function ClassicalControl.plot_trajectory(env::PendulumEnv, observations::AbstractArray, actions::AbstractArray, rewards::AbstractArray)
+function ClassicControlEnvironments.plot_trajectory(env::PendulumEnv, observations::AbstractArray, actions::AbstractArray, rewards::AbstractArray)
     fig = Figure(size=(800, 600))
     n = length(observations)
     xs = getindex.(observations, 1)
@@ -209,7 +209,7 @@ function ClassicalControl.plot_trajectory(env::PendulumEnv, observations::Abstra
     fig
 end
 
-function ClassicalControl.plot_trajectory_interactive(env::PendulumEnv, observations::AbstractArray, actions::AbstractArray, rewards::AbstractArray)
+function ClassicControlEnvironments.plot_trajectory_interactive(env::PendulumEnv, observations::AbstractArray, actions::AbstractArray, rewards::AbstractArray)
     # Process actions: scale by 2 and ensure they are a flat Vector{Float32}
     local processed_actions_scaled::Vector{Float32}
     if !isempty(actions) && actions[1] isa AbstractArray
@@ -376,7 +376,7 @@ function ClassicalControl.plot_trajectory_interactive(env::PendulumEnv, observat
     return fig, trajectory_slider, start_button, stop_button, step_button, reset_button
 end
 
-function ClassicalControl.animate_trajectory_video(env::PendulumEnv,
+function ClassicControlEnvironments.animate_trajectory_video(env::PendulumEnv,
     observations::AbstractArray,
     actions::AbstractArray,
     output_filename::AbstractString;

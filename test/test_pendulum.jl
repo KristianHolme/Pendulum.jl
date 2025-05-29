@@ -1,4 +1,4 @@
-using Pendulum
+using ClassicControlEnvironments
 using DRiL
 using Test
 using Random

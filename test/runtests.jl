@@ -1,4 +1,4 @@
-using Pendulum
+using ClassicControlEnvironments
 using Test
 
 @testset "Pendulum.jl" begin

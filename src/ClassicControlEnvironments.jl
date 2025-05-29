@@ -1,11 +1,13 @@
-module ClassicalControl
+module ClassicControlEnvironments
 
 using DRiL
 using Random
 using Reexport
 
+include("utils.jl")
 # Export the main environments
 include("Pendulum.jl")
+export PendulumEnv, PendulumProblem
 
 
 
