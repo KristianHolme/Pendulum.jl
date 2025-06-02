@@ -32,6 +32,7 @@ function DRiL.reset!(env::PendulumEnv)
     # Use the environment's internal RNG
     reset!(env.problem, env.rng)
     env.step = 0
+    nothing
 end
 
 function reset!(problem::PendulumProblem, rng::AbstractRNG)
