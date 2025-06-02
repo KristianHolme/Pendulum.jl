@@ -9,7 +9,8 @@ include("utils.jl")
 include("Pendulum.jl")
 export PendulumEnv, PendulumProblem
 
-
+include("MountainCar.jl")
+export MountainCarEnv, MountainCarProblem
 
 function plot end
 function live_viz end
