@@ -7,12 +7,16 @@ function _torque_arrow_coords(L, θ, τ)
     mid_x, mid_y = _pendulum_coords(L / 2, θ)
     # Arrow direction: perpendicular to pendulum
     perp_angle = θ + π / 2 * sign(τ)
-    # Arrow length scales with torque, now up to 0.8*L
-    arrow_length = 0.8 * L * clamp(abs(τ) / 2, 0, 1)
+    # Arrow length scales with torque, no minimum length
+    arrow_length = 0.5 * L * clamp(abs(τ) / 2, 0, 1)
     dx = arrow_length * -sin(perp_angle)
     dy = arrow_length * cos(perp_angle)
-    color = τ > 0 ? :green : :orange
-    (; mid_x, mid_y, dx, dy, color)
+    # Enhanced color scheme with better contrast
+    color = :forestgreen
+    # Larger, more visible arrowhead size
+    arrowsize = 20 * L * clamp(abs(τ) / 2, 0.1, 1)  # Minimum 10% of max size for visibility
+    linewidth = 1 + 3 * clamp(abs(τ) / 2, 0, 1)  # Dynamic line width, starting thicker
+    (; mid_x, mid_y, dx, dy, color, arrowsize, linewidth)
 end
 
 function ClassicControlEnvironments.plot(problem::PendulumProblem)
@@ -26,10 +30,11 @@ function ClassicControlEnvironments.plot(problem::PendulumProblem)
     lines!(ax, [Point2f(0.0, 0.0), pt], linewidth=4, color=:black)
     scatter!(ax, [0.0], [0.0], color=:red, markersize=15)
     scatter!(ax, pt, color=:blue, markersize=20)
-    # Torque arrow
-    if abs(τ) > 1e-4
+    # Torque arrow - show for any non-zero torque
+    if abs(τ) > 0
         arr = _torque_arrow_coords(L, θ, τ)
-        arrows!(ax, [Point2f(arr.mid_x, arr.mid_y)], [Vec2f(arr.dx, arr.dy)], color=arr.color, arrowsize=0.2)
+        arrows!(ax, [Point2f(arr.mid_x, arr.mid_y)], [Vec2f(arr.dx, arr.dy)],
+            color=arr.color, arrowsize=arr.arrowsize, linewidth=arr.linewidth)
     end
     xlims!(ax, -L - 0.2, L + 0.2)
     ylims!(ax, -L - 0.2, L + 0.2)
@@ -49,7 +54,9 @@ function ClassicControlEnvironments.live_viz(problem::PendulumProblem)
     torque_arrow = arrows!(ax,
         lift((θ, τ) -> [Point2f(_torque_arrow_coords(L, θ, τ).mid_x, _torque_arrow_coords(L, θ, τ).mid_y)], θ, τ),
         lift((θ, τ) -> [Vec2f(_torque_arrow_coords(L, θ, τ).dx, _torque_arrow_coords(L, θ, τ).dy)], θ, τ),
-        color=lift((θ, τ) -> _torque_arrow_coords(L, θ, τ).color, θ, τ), arrowsize=0.2)
+        color=lift((θ, τ) -> _torque_arrow_coords(L, θ, τ).color, θ, τ),
+        arrowsize=lift((θ, τ) -> _torque_arrow_coords(L, θ, τ).arrowsize, θ, τ),
+        linewidth=lift((θ, τ) -> _torque_arrow_coords(L, θ, τ).linewidth, θ, τ))
     xlims!(ax, -L - 0.2, L + 0.2)
     ylims!(ax, -L - 0.2, L + 0.2)
     # display(fig)
@@ -77,7 +84,9 @@ function ClassicControlEnvironments.interactive_viz(env::PendulumEnv)
     torque_arrow = arrows!(ax,
         lift((θ, τ) -> [Point2f(_torque_arrow_coords(L, θ, τ).mid_x, _torque_arrow_coords(L, θ, τ).mid_y)], θ, τ),
         lift((θ, τ) -> [Vec2f(_torque_arrow_coords(L, θ, τ).dx, _torque_arrow_coords(L, θ, τ).dy)], θ, τ),
-        color=lift((θ, τ) -> _torque_arrow_coords(L, θ, τ).color, θ, τ), arrowsize=0.2)
+        color=lift((θ, τ) -> _torque_arrow_coords(L, θ, τ).color, θ, τ),
+        arrowsize=lift((θ, τ) -> _torque_arrow_coords(L, θ, τ).arrowsize, θ, τ),
+        linewidth=lift((θ, τ) -> _torque_arrow_coords(L, θ, τ).linewidth, θ, τ))
     xlims!(ax, -L - 0.2, L + 0.2)
     ylims!(ax, -L - 0.2, L + 0.2)
 
@@ -237,7 +246,7 @@ function ClassicControlEnvironments.plot_trajectory_interactive(env::PendulumEnv
     # Velocity and dt from env.problem are used, or could be set to defaults if not relevant for viz
     problem_for_viz = PendulumProblem(
         theta=Float32(initial_theta),
-        velocity=0.0f0, # Not directly used by live_pendulum_viz for display logic
+        velocity=0.0f0, # Not directly used by live_viz for display logic
         torque=Float32(initial_torque_scaled),
         mass=env.problem.mass,
         length=env.problem.length,
@@ -245,18 +254,18 @@ function ClassicControlEnvironments.plot_trajectory_interactive(env::PendulumEnv
         dt=env.problem.dt # Also not directly used by display but part of struct
     )
 
-    # Get the live visualization components from live_pendulum_viz
-    # live_pendulum_viz returns: θ_observable, τ_observable, fig, update_viz_function
+    # Get the live visualization components from live_viz
+    # live_viz returns: θ_observable, τ_observable, fig, update_viz_function
     # We don't need the observables here as update_viz! handles them.
-    _, _, fig, update_viz! = live_pendulum_viz(problem_for_viz)
+    _, _, fig, update_viz! = live_viz(problem_for_viz)
 
     # Adjust figure layout slightly if needed, e.g., increase height for the slider
     # fig.size = (400, 450) # Example: uncomment and adjust if slider feels cramped
 
     # Add a slider for trajectory step
-    # live_pendulum_viz uses fig[1,1] for its Axis. We add the slider in a new row.
+    # live_viz uses fig[1,1] for its Axis. We add the slider in a new row.
     # Ensure there's a layout cell available or create one.
-    # By default, fig from live_pendulum_viz is a 1x1 grid for the axis.
+    # By default, fig from live_viz is a 1x1 grid for the axis.
     # We can add to fig[2,1]. Makie should handle expanding the layout.
     display(fig)
     sg = SliderGrid(fig[2, 1],
@@ -317,8 +326,7 @@ function ClassicControlEnvironments.plot_trajectory_interactive(env::PendulumEnv
                         sleep(speed_slider.value[])
                         if auto_playing[]  # Check again after sleep
                             # Update slider position and visualization
-                            trajectory_slider.value[] = current_step  # Force Observable update
-                            notify(trajectory_slider)  # Ensure slider widget updates visually
+                            set_close_to!(trajectory_slider, current_step)
                             update_step!(current_step)
                             current_step += 1
 
@@ -372,7 +380,7 @@ function ClassicControlEnvironments.plot_trajectory_interactive(env::PendulumEnv
         end
     end
 
-    # live_pendulum_viz already calls display(fig), so no need to call it again here.
+    # live_viz already calls display(fig), so no need to call it again here.
     return fig, trajectory_slider, start_button, stop_button, step_button, reset_button
 end
 
@@ -402,7 +410,7 @@ function ClassicControlEnvironments.animate_trajectory_video(env::PendulumEnv,
     problem_for_viz.torque = initial_torque
     problem_for_viz.velocity = 0.0f0
 
-    _, _, fig, update_viz! = live_pendulum_viz(problem_for_viz)
+    _, _, fig, update_viz! = live_viz(problem_for_viz)
     # Animation function
     function frame_update(step_idx)
         current_obs = observations[step_idx]

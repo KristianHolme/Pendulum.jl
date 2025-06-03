@@ -15,11 +15,11 @@ function _force_arrow_coords(problem::MountainCarProblem)
     force = problem.force
 
     # Arrow length scales with force magnitude
-    arrow_length = 0.2 * abs(force)
+    arrow_length = 0.4 * abs(force)
     dx = arrow_length * sign(force)  # Force direction: positive = right, negative = left
     dy = 0.0
 
-    color = force > 0 ? :green : (force < 0 ? :red : :gray)
+    color = :darkorange
 
     (; car_pos, dx, dy, color, force)
 end
@@ -50,7 +50,7 @@ function ClassicControlEnvironments.plot(problem::MountainCarProblem)
     if abs(problem.force) > 1e-3
         arrow_data = _force_arrow_coords(problem)
         arrows!(ax, [arrow_data.car_pos], [Vec2f(arrow_data.dx, arrow_data.dy)],
-            color=arrow_data.color, arrowsize=0.15)
+            color=arrow_data.color, arrowsize=10, linewidth=3)
     end
 
     # Labels and formatting
@@ -64,12 +64,12 @@ function ClassicControlEnvironments.plot(problem::MountainCarProblem)
     fig
 end
 
-function ClassicControlEnvironments.live_viz(problem::MountainCarProblem)
+function ClassicControlEnvironments.live_viz(problem::MountainCarProblem; size=(600, 400))
     position = Observable(problem.position)
     velocity = Observable(problem.velocity)
     force = Observable(problem.force)
 
-    fig = Figure(size=(600, 400))
+    fig = Figure(size=size)
     ax = Axis(fig[1, 1], aspect=DataAspect())
 
     # Draw mountain landscape (static)
@@ -92,8 +92,9 @@ function ClassicControlEnvironments.live_viz(problem::MountainCarProblem)
     force_arrow = arrows!(ax,
         @lift([Point2f($position, sin(3.0 * $position) * 0.45 + 0.6)]),
         @lift([Vec2f(0.2 * abs($force) * sign($force), 0.0)]),
-        color=@lift($force > 0 ? :green : ($force < 0 ? :red : :gray)),
-        arrowsize=0.15,
+        color=:darkorange,
+        arrowsize=10,
+        linewidth=3,
         visible=@lift(abs($force) > 1e-3)
     )
 
@@ -146,8 +147,9 @@ function ClassicControlEnvironments.interactive_viz(env::MountainCarEnv)
     force_arrow = arrows!(ax,
         @lift([Point2f($position, sin(3.0 * $position) * 0.45 + 0.6)]),
         @lift([Vec2f(0.2 * abs($force) * sign($force), 0.0)]),
-        color=@lift($force > 0 ? :green : ($force < 0 ? :red : :gray)),
-        arrowsize=0.15,
+        color=:darkorange,
+        arrowsize=10,
+        linewidth=3,
         visible=@lift(abs($force) > 1e-3)
     )
 
@@ -282,24 +284,20 @@ function ClassicControlEnvironments.plot_trajectory(env::MountainCarEnv, observa
     pos_line = scatterlines!(ax_pos, positions, label="Position")
     hlines!(ax_pos, [env.problem.goal_position], color=:red, linestyle=:dash, label="Goal")
     hlines!(ax_pos, [env.problem.min_position, env.problem.max_position], color=:gray, linestyle=:dot, label="Bounds")
-    axislegend(ax_pos)
 
     # Velocity plot
     ax_vel = Axis(fig[1, 2], title="Velocity over Time")
     vel_line = scatterlines!(ax_vel, velocities, label="Velocity")
     hlines!(ax_vel, [-env.problem.max_speed, env.problem.max_speed], color=:gray, linestyle=:dot, label="Max Speed")
-    axislegend(ax_vel)
 
     # Action plot
     ax_action = Axis(fig[2, 1], title="Actions (Force)")
     action_line = scatterlines!(ax_action, actions, label="Force")
     hlines!(ax_action, [-1.0, 1.0], color=:gray, linestyle=:dot, label="Action Bounds")
-    axislegend(ax_action)
 
     # Reward plot
     ax_rew = Axis(fig[2, 2], title="Rewards")
     rew_line = scatterlines!(ax_rew, rewards, label="Reward")
-    axislegend(ax_rew)
 
     # Trajectory in 2D space (position vs velocity)
     ax_traj = Axis(fig[3, 1:2], title="Trajectory (Position vs Velocity)")
@@ -307,9 +305,267 @@ function ClassicControlEnvironments.plot_trajectory(env::MountainCarEnv, observa
     scatter!(ax_traj, [positions[1]], [velocities[1]], color=:green, markersize=10, label="Start")
     scatter!(ax_traj, [positions[end]], [velocities[end]], color=:red, markersize=10, label="End")
     vlines!(ax_traj, [env.problem.goal_position], color=:red, linestyle=:dash, label="Goal Position")
+    # Add position and velocity limits
+    vlines!(ax_traj, [env.problem.min_position, env.problem.max_position], color=:gray, linestyle=:dot, label="Position Bounds")
+    hlines!(ax_traj, [-env.problem.max_speed, env.problem.max_speed], color=:gray, linestyle=:dot, label="Velocity Bounds")
     ax_traj.xlabel = "Position"
     ax_traj.ylabel = "Velocity"
-    axislegend(ax_traj)
+    fig[4, 1:2] = Legend(fig, ax_traj, orientation=:horizontal)
 
     fig
+end
+
+function ClassicControlEnvironments.plot_trajectory_interactive(env::MountainCarEnv, observations::AbstractArray, actions::AbstractArray, rewards::AbstractArray)
+    # Process actions: ensure they are a flat Vector{Float32}
+    local processed_actions::Vector{Float32}
+    if !isempty(actions) && actions[1] isa AbstractArray
+        # Assuming actions is a vector of 1-element vectors e.g. [[a1], [a2], ...]
+        processed_actions = [Float32(a[1]) for a in actions]
+    else
+        # Assuming actions is already a vector of scalars e.g. [a1, a2, ...]
+        processed_actions = [Float32(a) for a in actions]
+    end
+
+    num_steps = length(observations)
+    if num_steps == 0
+        error("Observations array cannot be empty.")
+    end
+    if num_steps != length(processed_actions)
+        error("Observations and processed actions must have the same length. Original actions length: $(length(actions)), Processed actions length: $(length(processed_actions))")
+    end
+
+    # Initial state for the live visualization
+    initial_obs = observations[1] # This is [position, velocity]
+    initial_position = initial_obs[1]
+    initial_velocity = initial_obs[2]
+    initial_force = processed_actions[1]
+
+    # Create a MountainCarProblem instance for the initial visualization
+    problem_for_viz = MountainCarProblem(
+        position=Float32(initial_position),
+        velocity=Float32(initial_velocity),
+        force=Float32(initial_force),
+        min_position=env.problem.min_position,
+        max_position=env.problem.max_position,
+        max_speed=env.problem.max_speed,
+        goal_position=env.problem.goal_position,
+        goal_velocity=env.problem.goal_velocity,
+        gravity=env.problem.gravity
+    )
+
+    # Get the live visualization components from live_viz
+    _, _, _, fig, update_viz! = live_viz(problem_for_viz; size=(600, 600))
+
+    # Add a slider for trajectory step
+    display(fig)
+    sg = SliderGrid(fig[2, 1],
+        (label="Step", range=1:num_steps, startvalue=1),
+        (label="Playback Speed", range=0.01:0.01:0.1, startvalue=0.05)
+    )
+    trajectory_slider = sg.sliders[1]
+    speed_slider = sg.sliders[2]
+
+    # Control buttons for automatic trajectory playback
+    button_grid = GridLayout(fig[3, 1])
+    start_button = Button(button_grid[1, 1], label="Play", tellwidth=false)
+    stop_button = Button(button_grid[1, 2], label="Pause", tellwidth=false)
+    step_button = Button(button_grid[1, 3], label="Next Step", tellwidth=false)
+    reset_button = Button(button_grid[1, 4], label="Reset", tellwidth=false)
+
+    # Button states
+    auto_playing = Observable(false)
+    current_task = Ref{Union{Task,Nothing}}(nothing)
+
+    # Function to update visualization for a given step
+    function update_step!(step_idx)
+        current_obs = observations[step_idx]
+        current_position = current_obs[1]
+        current_velocity = current_obs[2]
+        current_force = processed_actions[step_idx]
+
+        updated_problem = MountainCarProblem(
+            position=Float32(current_position),
+            velocity=Float32(current_velocity),
+            force=Float32(current_force),
+            min_position=env.problem.min_position,
+            max_position=env.problem.max_position,
+            max_speed=env.problem.max_speed,
+            goal_position=env.problem.goal_position,
+            goal_velocity=env.problem.goal_velocity,
+            gravity=env.problem.gravity
+        )
+        update_viz!(updated_problem)
+    end
+
+    # Manual slider control
+    on(trajectory_slider.value) do step_idx
+        if !auto_playing[]  # Only respond to manual slider changes when not auto-playing
+            update_step!(step_idx)
+        end
+    end
+
+    # Start/Play button functionality
+    on(start_button.clicks) do n
+        if !auto_playing[]
+            auto_playing[] = true
+            start_button.label = "Playing..."
+            start_button.buttoncolor = :lightgreen
+
+            # Start the automatic playback task
+            current_task[] = @async begin
+                try
+                    current_step = trajectory_slider.value[]
+                    while auto_playing[] && current_step <= num_steps
+                        sleep(speed_slider.value[])
+                        if auto_playing[]  # Check again after sleep
+                            # Update slider position and visualization
+                            set_close_to!(trajectory_slider, current_step)
+                            update_step!(current_step)
+                            current_step += 1
+
+                            # Stop at end of trajectory
+                            if current_step > num_steps
+                                auto_playing[] = false
+                                break
+                            end
+                        end
+                    end
+                catch e
+                    @warn "Auto-playback task interrupted: $e"
+                finally
+                    auto_playing[] = false
+                    start_button.label = "Play"
+                    start_button.buttoncolor = :lightgray
+                end
+            end
+        end
+    end
+
+    # Stop/Pause button functionality
+    on(stop_button.clicks) do n
+        if auto_playing[]
+            auto_playing[] = false
+            start_button.label = "Play"
+            start_button.buttoncolor = :lightgray
+            if !isnothing(current_task[])
+                # Give the task a moment to finish cleanly
+                sleep(0.01)
+            end
+        end
+    end
+
+    # Single step button functionality
+    on(step_button.clicks) do n
+        if !auto_playing[]  # Only allow single steps when not auto-playing
+            current_step = min(trajectory_slider.value[] + 1, num_steps)
+            trajectory_slider.value[] = current_step
+            notify(trajectory_slider)
+            update_step!(current_step)
+        end
+    end
+
+    # Reset button functionality
+    on(reset_button.clicks) do n
+        if !auto_playing[]  # Only allow reset when not auto-playing
+            trajectory_slider.value[] = 1
+            notify(trajectory_slider)
+            update_step!(1)
+        end
+    end
+
+    return fig, trajectory_slider, start_button, stop_button, step_button, reset_button
+end
+
+function ClassicControlEnvironments.animate_trajectory_video(env::MountainCarEnv,
+    observations::AbstractArray,
+    actions::AbstractArray,
+    output_filename::AbstractString;
+    target_fps::Int=25
+)
+    # Use actions directly
+    if actions[1] isa AbstractArray
+        actions = first.(actions)
+    end
+    num_steps = length(observations)
+    if num_steps == 0
+        error("Observations array cannot be empty.")
+    end
+    if num_steps != length(actions)
+        error("Observations and actions must have the same length.")
+    end
+
+    # Initial state for the live visualization
+    initial_obs = observations[1]
+    initial_position = initial_obs[1]
+    initial_velocity = initial_obs[2]
+    initial_force = actions[1]
+
+    problem_for_viz = env.problem
+    problem_for_viz.position = initial_position
+    problem_for_viz.velocity = initial_velocity
+    problem_for_viz.force = initial_force
+
+    _, _, _, fig, update_viz! = live_viz(problem_for_viz)
+
+    # Animation function
+    function frame_update(step_idx)
+        current_obs = observations[step_idx]
+        current_position = current_obs[1]
+        current_velocity = current_obs[2]
+        current_force = actions[step_idx]
+
+        updated_problem = MountainCarProblem(
+            position=Float32(current_position),
+            velocity=Float32(current_velocity),
+            force=Float32(current_force),
+            min_position=env.problem.min_position,
+            max_position=env.problem.max_position,
+            max_speed=env.problem.max_speed,
+            goal_position=env.problem.goal_position,
+            goal_velocity=env.problem.goal_velocity,
+            gravity=env.problem.gravity
+        )
+        update_viz!(updated_problem)
+    end
+
+    # Use dt=1 for MountainCar (no dt field) to set frame dropping for real-time video
+    dt = 1.0  # MountainCar uses dt=1 implicitly
+    steps_per_frame = max(1, round(Int, 1 / (target_fps * dt)))
+    frame_indices = 1:steps_per_frame:num_steps
+
+    Makie.record(fig, output_filename, frame_indices; framerate=target_fps) do step_idx
+        frame_update(step_idx)
+    end
+
+    return output_filename
+end
+
+function ClassicControlEnvironments.plot_trajectory_phase_space(env::MountainCarEnv, observations::AbstractArray, actions::AbstractArray; size=(600, 400))
+    positions = getindex.(observations, 1)
+    velocities = getindex.(observations, 2)
+
+    fig = Figure(size=size)
+    ax = Axis(fig[1, 1], title="Trajectory (Position vs Velocity)")
+
+    # Main trajectory line
+    traj_line = scatterlines!(ax, positions, velocities, label="Trajectory")
+
+    # Start and end points
+    scatter!(ax, [positions[1]], [velocities[1]], color=:green, markersize=10, label="Start")
+    scatter!(ax, [positions[end]], [velocities[end]], color=:red, markersize=10, label="End")
+
+    # Goal position line
+    vlines!(ax, [env.problem.goal_position], color=:red, linestyle=:dash, label="Goal Position")
+
+    # Position and velocity limits
+    vlines!(ax, [env.problem.min_position, env.problem.max_position], color=:gray, linestyle=:dot, label="Position Bounds")
+    hlines!(ax, [-env.problem.max_speed, env.problem.max_speed], color=:gray, linestyle=:dot, label="Velocity Bounds")
+
+    ax.xlabel = "Position"
+    ax.ylabel = "Velocity"
+
+    # Add legend below the plot
+    fig[2, 1] = Legend(fig, ax, orientation=:horizontal, tellheight=true)
+
+    return fig
 end
