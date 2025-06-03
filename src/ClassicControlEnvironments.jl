@@ -18,7 +18,8 @@ function interactive_viz end
 function plot_trajectory end
 function plot_trajectory_interactive end
 function animate_trajectory_video end
-
+function plot_trajectory_phase_space end
+export plot, live_viz, interactive_viz, plot_trajectory, plot_trajectory_interactive, animate_trajectory_video
 
 # Placeholder exports for future environments
 # export CartPoleEnv, MountainCarEnv, etc.
