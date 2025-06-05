@@ -12,6 +12,9 @@ export PendulumEnv, PendulumProblem
 include("MountainCar.jl")
 export MountainCarEnv, MountainCarProblem
 
+include("CartPole.jl")
+export CartPoleEnv, CartPoleProblem
+
 function plot end
 function live_viz end
 function interactive_viz end
