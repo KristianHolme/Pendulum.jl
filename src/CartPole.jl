@@ -143,4 +143,4 @@ end
 DRiL.truncated(env::CartPoleEnv) = env.step >= env.max_steps
 DRiL.action_space(env::CartPoleEnv) = env.action_space  
 DRiL.observation_space(env::CartPoleEnv) = env.observation_space
-DRiL.get_info(env::CartPoleEnv) = Dict("step" => env.step, "x" => env.problem.x, "theta" => env.problem.theta) 
+DRiL.get_info(env::CartPoleEnv) = Dict{String, Any}("step" => env.step, "x" => env.problem.x, "theta" => env.problem.theta) 

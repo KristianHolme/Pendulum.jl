@@ -83,4 +83,4 @@ DRiL.terminated(env::PendulumEnv) = false
 DRiL.truncated(env::PendulumEnv) = env.step >= env.max_steps
 DRiL.action_space(env::PendulumEnv) = env.action_space
 DRiL.observation_space(env::PendulumEnv) = env.observation_space
-DRiL.get_info(env::PendulumEnv) = Dict("step" => env.step)
+DRiL.get_info(env::PendulumEnv) = Dict{String, Any}("step" => env.step)

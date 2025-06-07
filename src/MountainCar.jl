@@ -116,4 +116,4 @@ end
 DRiL.truncated(env::MountainCarEnv) = env.step >= env.max_steps
 DRiL.action_space(env::MountainCarEnv) = env.action_space
 DRiL.observation_space(env::MountainCarEnv) = env.observation_space
-DRiL.get_info(env::MountainCarEnv) = Dict("step" => env.step, "position" => env.problem.position, "velocity" => env.problem.velocity)
+DRiL.get_info(env::MountainCarEnv) = Dict{String, Any}("step" => env.step, "position" => env.problem.position, "velocity" => env.problem.velocity)
