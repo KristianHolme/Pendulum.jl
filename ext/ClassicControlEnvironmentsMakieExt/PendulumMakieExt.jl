@@ -186,7 +186,7 @@ function ClassicControlEnvironments.plot_trajectory(env::PendulumEnv, observatio
     ys = getindex.(observations, 2)
     vels = getindex.(observations, 3)
     scaled_vels = vels .* 8
-    thetas = Pendulum.angle.(xs, ys)
+    thetas = atan.(ys, xs)
 
     actions = vec(stack(actions))
     torques = actions .* 2

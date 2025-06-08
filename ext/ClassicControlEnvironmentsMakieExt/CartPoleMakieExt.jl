@@ -376,8 +376,7 @@ function ClassicControlEnvironments.plot_trajectory(env::CartPoleEnv, observatio
     ax_action = Axis(fig[3, 1], title="Actions over Time")
     action_line = scatterlines!(ax_action, actions, label="Action")
     hlines!(ax_action, [0, 1], color=:gray, linestyle=:dot, label="Action Range")
-    ax_action.yticks = [0, 1]
-    ax_action.yticklabels = ["Push Left", "Push Right"]
+    ax_action.yticks = ([0, 1], ["Push Left", "Push Right"])
     axislegend(ax_action)
 
     # Rewards over time
