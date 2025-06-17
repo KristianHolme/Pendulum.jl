@@ -11,7 +11,40 @@
     max_speed::Float32 = 0.07f0
 end
 
-mutable struct MountainCarEnv <: AbstractEnv
+# Abstract base type for both mountain car environments
+abstract type AbstractMountainCarEnv <: AbstractEnv end
+
+# Discrete Mountain Car Environment (0=left, 1=no force, 2=right)
+mutable struct MountainCarEnv <: AbstractMountainCarEnv
+    problem::MountainCarProblem
+    action_space::Discrete
+    observation_space::Box{Float32}
+    max_steps::Int
+    step::Int
+    rng::Random.AbstractRNG
+
+    function MountainCarEnv(; problem=nothing, max_steps::Int=999, rng::Random.AbstractRNG=Random.Xoshiro(), kwargs...)
+        # Create a problem if not provided, using kwargs for its constructor
+        if isnothing(problem)
+            problem = MountainCarProblem(; kwargs...)
+        end
+
+        # Discrete action space: 0 = push left, 1 = no force, 2 = push right
+        action_space = Discrete(3, 0)
+
+        # Observation space: [position, velocity]
+        observation_space = Box{Float32}(
+            [problem.min_position, -problem.max_speed],
+            [problem.max_position, problem.max_speed]
+        )
+
+        env = new(problem, action_space, observation_space, max_steps, 0, rng)
+        return env
+    end
+end
+
+# Continuous Mountain Car Environment (force in [-1, 1])
+mutable struct MountainCarContinuousEnv <: AbstractMountainCarEnv
     problem::MountainCarProblem
     action_space::Box{Float32}
     observation_space::Box{Float32}
@@ -19,7 +52,7 @@ mutable struct MountainCarEnv <: AbstractEnv
     step::Int
     rng::Random.AbstractRNG
 
-    function MountainCarEnv(; problem=nothing, max_steps::Int=999, rng::Random.AbstractRNG=Random.Xoshiro(), kwargs...)
+    function MountainCarContinuousEnv(; problem=nothing, max_steps::Int=999, rng::Random.AbstractRNG=Random.Xoshiro(), kwargs...)
         # Create a problem if not provided, using kwargs for its constructor
         if isnothing(problem)
             problem = MountainCarProblem(; kwargs...)
@@ -39,7 +72,9 @@ mutable struct MountainCarEnv <: AbstractEnv
     end
 end
 
-function DRiL.reset!(env::MountainCarEnv)
+# Common methods for all mountain car environments
+
+function DRiL.reset!(env::AbstractMountainCarEnv)
     # Use the environment's internal RNG
     reset!(env.problem, env.rng)
     env.step = 0
@@ -53,8 +88,8 @@ function reset!(problem::MountainCarProblem, rng::AbstractRNG)
     nothing
 end
 
-function reward(env::MountainCarEnv)
-    # Reward structure for continuous mountain car
+function reward(env::AbstractMountainCarEnv)
+    # Reward structure for mountain car
     # Small penalty for each step to encourage reaching goal quickly
     # Bonus for reaching goal
     if env.problem.position >= env.problem.goal_position &&
@@ -68,20 +103,13 @@ function reward(env::MountainCarEnv)
     end
 end
 
-function DRiL.act!(env::MountainCarEnv, action::AbstractArray{Float32,1})
-    DRiL.act!(env, action[1])
-end
-
-function DRiL.act!(env::MountainCarEnv, action::Float32)
-    problem = env.problem
-
-    # Clamp action to valid range
-    action = clamp(action, -1.0f0, 1.0f0)
-    problem.force = action
+# Shared physics update function
+function update_mountain_car_physics!(problem::MountainCarProblem, force::Float32)
+    problem.force = force
 
     # Update velocity based on force and gravity
     # velocity += force * power - cos(3 * position) * gravity
-    velocity_change = action * problem.power - cos(3.0f0 * problem.position) * problem.gravity
+    velocity_change = force * problem.power - cos(3.0f0 * problem.position) * problem.gravity
     problem.velocity += velocity_change
 
     # Clamp velocity to bounds
@@ -99,21 +127,49 @@ function DRiL.act!(env::MountainCarEnv, action::Float32)
         problem.velocity = 0.0f0  # Stop at right boundary (though this shouldn't happen in normal case)
     end
 
+    nothing
+end
+
+# Discrete MountainCarEnv action methods
+function DRiL.act!(env::MountainCarEnv, action::AbstractArray{Int,1})
+    DRiL.act!(env, action[1])
+end
+
+function DRiL.act!(env::MountainCarEnv, action::Integer)
+    # Convert discrete action to force: 0 -> -1, 1 -> 0, 2 -> +1
+    force = action == 0 ? -1.0f0 : (action == 1 ? 0.0f0 : 1.0f0)
+    
+    update_mountain_car_physics!(env.problem, force)
     env.step += 1
     return reward(env)
 end
 
-function DRiL.observe(env::MountainCarEnv)
+# Continuous MountainCarContinuousEnv action methods
+function DRiL.act!(env::MountainCarContinuousEnv, action::AbstractArray{Float32,1})
+    DRiL.act!(env, action[1])
+end
+
+function DRiL.act!(env::MountainCarContinuousEnv, action::Float32)
+    # Clamp action to valid range
+    force = clamp(action, -1.0f0, 1.0f0)
+    
+    update_mountain_car_physics!(env.problem, force)
+    env.step += 1
+    return reward(env)
+end
+
+# Common interface methods
+function DRiL.observe(env::AbstractMountainCarEnv)
     return [env.problem.position, env.problem.velocity]
 end
 
-function DRiL.terminated(env::MountainCarEnv)
+function DRiL.terminated(env::AbstractMountainCarEnv)
     # Episode terminates when car reaches goal position with sufficient velocity
     return env.problem.position >= env.problem.goal_position &&
            env.problem.velocity >= env.problem.goal_velocity
 end
 
-DRiL.truncated(env::MountainCarEnv) = env.step >= env.max_steps
-DRiL.action_space(env::MountainCarEnv) = env.action_space
-DRiL.observation_space(env::MountainCarEnv) = env.observation_space
-DRiL.get_info(env::MountainCarEnv) = Dict{String, Any}("step" => env.step, "position" => env.problem.position, "velocity" => env.problem.velocity)
+DRiL.truncated(env::AbstractMountainCarEnv) = env.step >= env.max_steps
+DRiL.action_space(env::AbstractMountainCarEnv) = env.action_space
+DRiL.observation_space(env::AbstractMountainCarEnv) = env.observation_space
+DRiL.get_info(env::AbstractMountainCarEnv) = Dict{String, Any}("step" => env.step, "position" => env.problem.position, "velocity" => env.problem.velocity)

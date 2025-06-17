@@ -1,3 +1,24 @@
+# Helper function to process actions for plotting (handles both discrete and continuous)
+function _process_actions_for_plotting(actions::AbstractArray, env::ClassicControlEnvironments.AbstractMountainCarEnv)
+    # Handle case where actions is a vector of arrays (e.g., [[a1], [a2], ...])
+    if !isempty(actions) && actions[1] isa AbstractArray
+        flat_actions = [a[1] for a in actions]
+    else
+        flat_actions = actions
+    end
+    
+    # Convert discrete actions to force values for visualization
+    if DRiL.action_space(env) isa DRiL.Discrete
+        # Discrete actions: 0 -> -1, 1 -> 0, 2 -> 1
+        force_actions = [Float32(action == 0 ? -1 : (action == 1 ? 0 : 1)) for action in flat_actions]
+    else
+        # Continuous actions: just convert to Float32
+        force_actions = [Float32(action) for action in flat_actions]
+    end
+    
+    return force_actions
+end
+
 function _mountain_shape(x_range, amplitude=0.45)
     # Create the mountain/valley shape: cos(3*x) scaled
     return sin.(3.0 .* x_range) .* amplitude .+ 0.55
@@ -116,7 +137,7 @@ function ClassicControlEnvironments.live_viz(problem::MountainCarProblem; size=(
     return position, velocity, force, fig, update_viz!
 end
 
-function ClassicControlEnvironments.interactive_viz(env::MountainCarEnv)
+function ClassicControlEnvironments.interactive_viz(env::ClassicControlEnvironments.AbstractMountainCarEnv)
     position = Observable(env.problem.position)
     velocity = Observable(env.problem.velocity)
     force = Observable(env.problem.force)
@@ -265,19 +286,15 @@ function ClassicControlEnvironments.interactive_viz(env::MountainCarEnv)
     return position, velocity, force, fig, sg, start_button, stop_button, step_button, reset_button
 end
 
-function ClassicControlEnvironments.plot_trajectory(env::MountainCarEnv, observations::AbstractArray, actions::AbstractArray, rewards::AbstractArray)
+function ClassicControlEnvironments.plot_trajectory(env::ClassicControlEnvironments.AbstractMountainCarEnv, observations::AbstractArray, actions::AbstractArray, rewards::AbstractArray)
     fig = Figure(size=(800, 800))
     n = length(observations)
 
     positions = getindex.(observations, 1)
     velocities = getindex.(observations, 2)
 
-    # Ensure actions is a flat vector
-    if !isempty(actions) && actions[1] isa AbstractArray
-        actions = [Float32(a[1]) for a in actions]
-    else
-        actions = [Float32(a) for a in actions]
-    end
+    # Process actions (handles both discrete and continuous)
+    actions = _process_actions_for_plotting(actions, env)
 
     # Position plot
     ax_pos = Axis(fig[1, 1], title="Position over Time")
@@ -315,16 +332,9 @@ function ClassicControlEnvironments.plot_trajectory(env::MountainCarEnv, observa
     fig
 end
 
-function ClassicControlEnvironments.plot_trajectory_interactive(env::MountainCarEnv, observations::AbstractArray, actions::AbstractArray, rewards::AbstractArray)
-    # Process actions: ensure they are a flat Vector{Float32}
-    local processed_actions::Vector{Float32}
-    if !isempty(actions) && actions[1] isa AbstractArray
-        # Assuming actions is a vector of 1-element vectors e.g. [[a1], [a2], ...]
-        processed_actions = [Float32(a[1]) for a in actions]
-    else
-        # Assuming actions is already a vector of scalars e.g. [a1, a2, ...]
-        processed_actions = [Float32(a) for a in actions]
-    end
+function ClassicControlEnvironments.plot_trajectory_interactive(env::ClassicControlEnvironments.AbstractMountainCarEnv, observations::AbstractArray, actions::AbstractArray, rewards::AbstractArray)
+    # Process actions (handles both discrete and continuous)
+    processed_actions = _process_actions_for_plotting(actions, env)
 
     num_steps = length(observations)
     if num_steps == 0
@@ -476,16 +486,14 @@ function ClassicControlEnvironments.plot_trajectory_interactive(env::MountainCar
     return fig, trajectory_slider, start_button, stop_button, step_button, reset_button
 end
 
-function ClassicControlEnvironments.animate_trajectory_video(env::MountainCarEnv,
+function ClassicControlEnvironments.animate_trajectory_video(env::ClassicControlEnvironments.AbstractMountainCarEnv,
     observations::AbstractArray,
     actions::AbstractArray,
     output_filename::AbstractString;
     target_fps::Int=25
 )
-    # Use actions directly
-    if actions[1] isa AbstractArray
-        actions = first.(actions)
-    end
+    # Process actions (handles both discrete and continuous)
+    actions = _process_actions_for_plotting(actions, env)
     num_steps = length(observations)
     if num_steps == 0
         error("Observations array cannot be empty.")
@@ -540,7 +548,7 @@ function ClassicControlEnvironments.animate_trajectory_video(env::MountainCarEnv
     return output_filename
 end
 
-function ClassicControlEnvironments.plot_trajectory_phase_space(env::MountainCarEnv, observations::AbstractArray, actions::AbstractArray; size=(600, 400))
+function ClassicControlEnvironments.plot_trajectory_phase_space(env::ClassicControlEnvironments.AbstractMountainCarEnv, observations::AbstractArray, actions::AbstractArray; size=(600, 400))
     positions = getindex.(observations, 1)
     velocities = getindex.(observations, 2)
 
