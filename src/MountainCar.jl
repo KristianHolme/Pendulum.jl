@@ -2,7 +2,7 @@
     position::Float32 = rand(Float32)*0.2f0 - 0.6f0  # Car position, starts in [-0.6, -0.4]
     velocity::Float32 = 0.0f0   # Car velocity, in [-0.07, 0.07]
     force::Float32 = 0.0f0      # Applied force (action)
-    power::Float32 = 0.0015f0   # Power multiplier for force
+    power::Float32 = 0.001f0   # Power multiplier for force
     gravity::Float32 = 0.0025f0 # Gravity constant
     goal_position::Float32 = 0.45f0  # Goal position (right hill)
     goal_velocity::Float32 = 0.0f0  # Goal velocity (can be modified)
