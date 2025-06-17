@@ -10,10 +10,13 @@ include("Pendulum.jl")
 export PendulumEnv, PendulumProblem
 
 include("MountainCar.jl")
-export MountainCarEnv, MountainCarProblem
+export AbstractMountainCarEnv, MountainCarEnv, MountainCarContinuousEnv, MountainCarProblem
 
 include("CartPole.jl")
 export CartPoleEnv, CartPoleProblem
+
+include("Acrobot.jl")
+export AcrobotEnv, AcrobotProblem
 
 function plot end
 function live_viz end
