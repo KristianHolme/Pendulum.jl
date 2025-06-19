@@ -88,19 +88,20 @@ function reset!(problem::MountainCarProblem, rng::AbstractRNG)
     nothing
 end
 
-function reward(env::AbstractMountainCarEnv)
+function reward(env::MountainCarContinuousEnv)
     # Reward structure for mountain car
     # Small penalty for each step to encourage reaching goal quickly
     # Bonus for reaching goal
+    reward = -0.1f0 * env.problem.force^2
     if env.problem.position >= env.problem.goal_position &&
        env.problem.velocity >= env.problem.goal_velocity
-        return 100.0f0  # Large positive reward for reaching goal
-    else
-        # Small penalty per step + penalty for energy usage
-        action_penalty = -0.1f0 * env.problem.force^2
-        # step_penalty = -1.0f0
-        return action_penalty
+        reward +=100.0f0  # Large positive reward for reaching goal
     end
+    return reward
+end
+
+function reward(::MountainCarEnv)
+    return -1f0
 end
 
 # Shared physics update function
