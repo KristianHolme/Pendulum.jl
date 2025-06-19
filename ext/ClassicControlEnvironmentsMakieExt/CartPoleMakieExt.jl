@@ -67,8 +67,8 @@ function ClassicControlEnvironments.plot(problem::CartPoleProblem)
     # Draw force arrow if there's significant force
     if abs(problem.force) > 1e-3
         arrow_data = _force_arrow_coords(problem)
-        arrows!(ax, [arrow_data.cart_pos], [Vec2f(arrow_data.dx, arrow_data.dy)],
-            color=arrow_data.color, arrowsize=15, linewidth=3)
+        arrows2d!(ax, [arrow_data.cart_pos], [Vec2f(arrow_data.dx, arrow_data.dy)],
+            color=arrow_data.color, shaftwidth=0.02)
     end
 
     # Draw bounds indicators
@@ -120,12 +120,11 @@ function ClassicControlEnvironments.live_viz(problem::CartPoleProblem; size=(600
     cart_center = scatter!(ax, @lift(Point2f($x, 0.0f0)), color=:black, markersize=8)
 
     # Force arrow (dynamic)
-    force_arrow = arrows!(ax,
+    force_arrow = arrows2d!(ax,
         @lift([Point2f($x, 0.0f0)]),
         @lift([Vec2f(0.3 * abs($force) / problem.force_mag * sign($force), 0.0)]),
         color=@lift($force > 0 ? :green : :red),
-        arrowsize=15,
-        linewidth=3,
+        shaftwidth=0.02,
         visible=@lift(abs($force) > 1e-3)
     )
 
@@ -189,12 +188,11 @@ function ClassicControlEnvironments.interactive_viz(env::CartPoleEnv)
     cart_center = scatter!(ax, @lift(Point2f($x, 0.0f0)), color=:black, markersize=8)
 
     # Force arrow
-    force_arrow = arrows!(ax,
+    force_arrow = arrows2d!(ax,
         @lift([Point2f($x, 0.0f0)]),
         @lift([Vec2f(0.3 * abs($force) / env.problem.force_mag * sign($force), 0.0)]),
         color=@lift($force > 0 ? :green : :red),
-        arrowsize=15,
-        linewidth=3,
+        shaftwidth=0.02,
         visible=@lift(abs($force) > 1e-3)
     )
 
@@ -379,9 +377,11 @@ function ClassicControlEnvironments.plot_trajectory(env::CartPoleEnv, observatio
     ax_action.yticks = ([0, 1], ["Push Left", "Push Right"])
     axislegend(ax_action)
 
-    # Rewards over time
+    # Rewards over time (shifted to align with resulting observations)
     ax_rew = Axis(fig[3, 2], title="Rewards over Time")
-    rew_line = scatterlines!(ax_rew, rewards, label="Reward")
+    # Pad rewards with NaN for the first observation (no preceding action)
+    shifted_rewards = [NaN; rewards]
+    rew_line = scatterlines!(ax_rew, shifted_rewards, label="Reward")
     axislegend(ax_rew)
 
     fig
@@ -400,8 +400,8 @@ function ClassicControlEnvironments.plot_trajectory_interactive(env::CartPoleEnv
     if num_steps == 0
         error("Observations array cannot be empty.")
     end
-    if num_steps != length(processed_actions)
-        error("Observations and processed actions must have the same length.")
+    if num_steps != length(processed_actions) + 1
+        error("Observations must have one more element than actions. Observations length: $(num_steps), Actions length: $(length(processed_actions))")
     end
 
     # Initial state for visualization
@@ -452,8 +452,13 @@ function ClassicControlEnvironments.plot_trajectory_interactive(env::CartPoleEnv
         current_obs = observations[step_idx]
         current_x = current_obs[1]
         current_theta = current_obs[3]
-        current_action = processed_actions[step_idx]
-        current_force = current_action == 0 ? -env.problem.force_mag : env.problem.force_mag
+        # Handle final observation (no corresponding action)
+        if step_idx <= length(processed_actions)
+            current_action = processed_actions[step_idx]
+            current_force = current_action == 0 ? -env.problem.force_mag : env.problem.force_mag
+        else
+            current_force = 0.0f0
+        end
 
         updated_problem = CartPoleProblem(
             x=Float32(current_x),
@@ -560,8 +565,8 @@ function ClassicControlEnvironments.animate_trajectory_video(env::CartPoleEnv,
     if num_steps == 0
         error("Observations array cannot be empty.")
     end
-    if num_steps != length(actions)
-        error("Observations and actions must have the same length.")
+    if num_steps != length(actions) + 1
+        error("Observations must have one more element than actions. Observations length: $(num_steps), Actions length: $(length(actions))")
     end
 
     # Initial state
@@ -582,8 +587,13 @@ function ClassicControlEnvironments.animate_trajectory_video(env::CartPoleEnv,
         current_obs = observations[step_idx]
         current_x = current_obs[1]
         current_theta = current_obs[3]
-        current_action = actions[step_idx]
-        current_force = current_action == 0 ? -env.problem.force_mag : env.problem.force_mag
+        # Handle final observation (no corresponding action)
+        if step_idx <= length(actions)
+            current_action = actions[step_idx]
+            current_force = current_action == 0 ? -env.problem.force_mag : env.problem.force_mag
+        else
+            current_force = 0.0f0
+        end
 
         updated_problem = CartPoleProblem(
             x=Float32(current_x),

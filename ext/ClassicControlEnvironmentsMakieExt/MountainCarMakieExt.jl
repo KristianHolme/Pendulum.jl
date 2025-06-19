@@ -6,7 +6,7 @@ function _process_actions_for_plotting(actions::AbstractArray, env::ClassicContr
     else
         flat_actions = actions
     end
-    
+
     # Convert discrete actions to force values for visualization
     if DRiL.action_space(env) isa DRiL.Discrete
         # Discrete actions: 0 -> -1, 1 -> 0, 2 -> 1
@@ -15,7 +15,7 @@ function _process_actions_for_plotting(actions::AbstractArray, env::ClassicContr
         # Continuous actions: just convert to Float32
         force_actions = [Float32(action) for action in flat_actions]
     end
-    
+
     return force_actions
 end
 
@@ -70,8 +70,8 @@ function ClassicControlEnvironments.plot(problem::MountainCarProblem)
     # Draw force arrow if there's significant force
     if abs(problem.force) > 1e-3
         arrow_data = _force_arrow_coords(problem)
-        arrows!(ax, [arrow_data.car_pos], [Vec2f(arrow_data.dx, arrow_data.dy)],
-            color=arrow_data.color, arrowsize=10, linewidth=3)
+        arrows2d!(ax, [arrow_data.car_pos], [Vec2f(arrow_data.dx, arrow_data.dy)],
+            color=arrow_data.color, shaftwidth=0.015)
     end
 
     # Labels and formatting
@@ -110,12 +110,11 @@ function ClassicControlEnvironments.live_viz(problem::MountainCarProblem; size=(
         marker=:rect, markersize=20, color=:blue)
 
     # Draw force arrow (dynamic)
-    force_arrow = arrows!(ax,
+    force_arrow = arrows2d!(ax,
         @lift([Point2f($position, sin(3.0 * $position) * 0.45 + 0.6)]),
         @lift([Vec2f(0.2 * abs($force) * sign($force), 0.0)]),
         color=:darkorange,
-        arrowsize=10,
-        linewidth=3,
+        shaftwidth=0.015,
         visible=@lift(abs($force) > 1e-3)
     )
 
@@ -165,12 +164,11 @@ function ClassicControlEnvironments.interactive_viz(env::ClassicControlEnvironme
         marker=:rect, markersize=20, color=:blue)
 
     # Force arrow
-    force_arrow = arrows!(ax,
+    force_arrow = arrows2d!(ax,
         @lift([Point2f($position, sin(3.0 * $position) * 0.45 + 0.6)]),
         @lift([Vec2f(0.2 * abs($force) * sign($force), 0.0)]),
         color=:darkorange,
-        arrowsize=10,
-        linewidth=3,
+        shaftwidth=0.015,
         visible=@lift(abs($force) > 1e-3)
     )
 
@@ -312,9 +310,11 @@ function ClassicControlEnvironments.plot_trajectory(env::ClassicControlEnvironme
     action_line = scatterlines!(ax_action, actions, label="Force")
     hlines!(ax_action, [-1.0, 1.0], color=:gray, linestyle=:dot, label="Action Bounds")
 
-    # Reward plot
+    # Reward plot (shifted to align with resulting observations)
     ax_rew = Axis(fig[2, 2], title="Rewards")
-    rew_line = scatterlines!(ax_rew, rewards, label="Reward")
+    # Pad rewards with NaN for the first observation (no preceding action)
+    shifted_rewards = [NaN; rewards]
+    rew_line = scatterlines!(ax_rew, shifted_rewards, label="Reward")
 
     # Trajectory in 2D space (position vs velocity)
     ax_traj = Axis(fig[3, 1:2], title="Trajectory (Position vs Velocity)")
@@ -340,8 +340,8 @@ function ClassicControlEnvironments.plot_trajectory_interactive(env::ClassicCont
     if num_steps == 0
         error("Observations array cannot be empty.")
     end
-    if num_steps != length(processed_actions)
-        error("Observations and processed actions must have the same length. Original actions length: $(length(actions)), Processed actions length: $(length(processed_actions))")
+    if num_steps != length(processed_actions) + 1
+        error("Observations must have one more element than actions. Observations length: $(num_steps), Actions length: $(length(processed_actions))")
     end
 
     # Initial state for the live visualization
@@ -391,7 +391,8 @@ function ClassicControlEnvironments.plot_trajectory_interactive(env::ClassicCont
         current_obs = observations[step_idx]
         current_position = current_obs[1]
         current_velocity = current_obs[2]
-        current_force = processed_actions[step_idx]
+        # Handle final observation (no corresponding action)
+        current_force = step_idx <= length(processed_actions) ? processed_actions[step_idx] : 0.0f0
 
         updated_problem = MountainCarProblem(
             position=Float32(current_position),
@@ -498,8 +499,8 @@ function ClassicControlEnvironments.animate_trajectory_video(env::ClassicControl
     if num_steps == 0
         error("Observations array cannot be empty.")
     end
-    if num_steps != length(actions)
-        error("Observations and actions must have the same length.")
+    if num_steps != length(actions) + 1
+        error("Observations must have one more element than actions. Observations length: $(num_steps), Actions length: $(length(actions))")
     end
 
     # Initial state for the live visualization
@@ -520,7 +521,8 @@ function ClassicControlEnvironments.animate_trajectory_video(env::ClassicControl
         current_obs = observations[step_idx]
         current_position = current_obs[1]
         current_velocity = current_obs[2]
-        current_force = actions[step_idx]
+        # Handle final observation (no corresponding action)
+        current_force = step_idx <= length(actions) ? actions[step_idx] : 0.0f0
 
         updated_problem = MountainCarProblem(
             position=Float32(current_position),

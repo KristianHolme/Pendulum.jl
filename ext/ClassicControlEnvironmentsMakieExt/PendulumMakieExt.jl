@@ -2,21 +2,47 @@ function _pendulum_coords(L, θ)
     return Point2f(-L * sin(θ), L * cos(θ))
 end
 
-function _torque_arrow_coords(L, θ, τ)
-    # Arrow is centered at the midpoint of the pendulum
-    mid_x, mid_y = _pendulum_coords(L / 2, θ)
-    # Arrow direction: perpendicular to pendulum
-    perp_angle = θ + π / 2 * sign(τ)
-    # Arrow length scales with torque, no minimum length
-    arrow_length = 0.5 * L * clamp(abs(τ) / 2, 0, 1)
-    dx = arrow_length * -sin(perp_angle)
-    dy = arrow_length * cos(perp_angle)
-    # Enhanced color scheme with better contrast
+function _torque_arc_coords(L, θ, τ)
+    # Arc is centered at the pivot point (origin)
+    center = Point2f(0.0f0, 0.0f0)
+
+    # Arc radius - smaller for pendulum, scaled by length
+    arc_radius = 0.3f0 * L
+
+    # Arc span based on torque magnitude
+    arc_span = π / 4 + π / 8 * clamp(abs(τ) / 2, 0, 1)  # Between π/4 and 3π/8 radians
+
+    # Start the arc from the current pendulum angle, going in torque direction
+    if τ > 0  # Counter-clockwise (positive torque)
+        start_angle = θ - arc_span / 2
+        stop_angle = θ + arc_span / 2
+        arrow_angle = stop_angle + π / 2  # Tangent to arc (counter-clockwise)
+    else  # Clockwise (negative torque)
+        start_angle = θ + arc_span / 2
+        stop_angle = θ - arc_span / 2
+        arrow_angle = stop_angle - π / 2  # Tangent to arc (clockwise)
+    end
+
+    # Arrow head position at the end of the arc
+    arrow_head_pos = Point2f(
+        arc_radius * sin(stop_angle),
+        arc_radius * -cos(stop_angle)
+    )
+
+    # Arrow head direction vector (larger for visibility)
+    head_length = 0.25f0 * L
+    dx = head_length * sin(arrow_angle)
+    dy = head_length * -cos(arrow_angle)
+
+    # Enhanced color scheme
     color = :forestgreen
-    # Larger, more visible arrowhead size
-    arrowsize = 20 * L * clamp(abs(τ) / 2, 0.1, 1)  # Minimum 10% of max size for visibility
-    linewidth = 1 + 3 * clamp(abs(τ) / 2, 0, 1)  # Dynamic line width, starting thicker
-    (; mid_x, mid_y, dx, dy, color, arrowsize, linewidth)
+
+    # Dynamic line width
+    linewidth = 2 + 2 * clamp(abs(τ) / 2, 0, 1)
+    shaftwidth = 0.01 + 0.02 * clamp(abs(τ) / 2, 0, 1)
+
+    (; center, radius=arc_radius, start_angle, stop_angle, arrow_pos=arrow_head_pos,
+        dx, dy, color, linewidth, shaftwidth)
 end
 
 function ClassicControlEnvironments.plot(problem::PendulumProblem)
@@ -30,11 +56,15 @@ function ClassicControlEnvironments.plot(problem::PendulumProblem)
     lines!(ax, [Point2f(0.0, 0.0), pt], linewidth=4, color=:black)
     scatter!(ax, [0.0], [0.0], color=:red, markersize=15)
     scatter!(ax, pt, color=:blue, markersize=20)
-    # Torque arrow - show for any non-zero torque
+    # Torque arc and arrow - show for any non-zero torque
     if abs(τ) > 0
-        arr = _torque_arrow_coords(L, θ, τ)
-        arrows!(ax, [Point2f(arr.mid_x, arr.mid_y)], [Vec2f(arr.dx, arr.dy)],
-            color=arr.color, arrowsize=arr.arrowsize, linewidth=arr.linewidth)
+        arr = _torque_arc_coords(L, θ, τ)
+        # Draw the arc
+        arc!(ax, arr.center, arr.radius, arr.start_angle, arr.stop_angle,
+            color=arr.color, linewidth=arr.linewidth)
+        # Draw the arrow head
+        arrows2d!(ax, [arr.arrow_pos], [Vec2f(arr.dx, arr.dy)],
+            color=arr.color, shaftwidth=arr.shaftwidth, tiplength=12, tipwidth=12)
     end
     xlims!(ax, -L - 0.2, L + 0.2)
     ylims!(ax, -L - 0.2, L + 0.2)
@@ -50,13 +80,24 @@ function ClassicControlEnvironments.live_viz(problem::PendulumProblem)
     pendulum_line = lines!(ax, @lift([Point2f(0.0, 0.0), _pendulum_coords(L, $θ)]), linewidth=4, color=:black)
     scatter!(ax, [0.0], [0.0], color=:red, markersize=15)
     mass_scatter = scatter!(ax, @lift(_pendulum_coords(L, $θ)), color=:blue, markersize=20)
-    # Torque arrow
-    torque_arrow = arrows!(ax,
-        lift((θ, τ) -> [Point2f(_torque_arrow_coords(L, θ, τ).mid_x, _torque_arrow_coords(L, θ, τ).mid_y)], θ, τ),
-        lift((θ, τ) -> [Vec2f(_torque_arrow_coords(L, θ, τ).dx, _torque_arrow_coords(L, θ, τ).dy)], θ, τ),
-        color=lift((θ, τ) -> _torque_arrow_coords(L, θ, τ).color, θ, τ),
-        arrowsize=lift((θ, τ) -> _torque_arrow_coords(L, θ, τ).arrowsize, θ, τ),
-        linewidth=lift((θ, τ) -> _torque_arrow_coords(L, θ, τ).linewidth, θ, τ))
+    # Torque arc and arrow
+    torque_arc = arc!(ax,
+        lift((θ, τ) -> _torque_arc_coords(L, θ, τ).center, θ, τ),
+        lift((θ, τ) -> _torque_arc_coords(L, θ, τ).radius, θ, τ),
+        lift((θ, τ) -> _torque_arc_coords(L, θ, τ).start_angle, θ, τ),
+        lift((θ, τ) -> _torque_arc_coords(L, θ, τ).stop_angle, θ, τ),
+        color=lift((θ, τ) -> _torque_arc_coords(L, θ, τ).color, θ, τ),
+        linewidth=lift((θ, τ) -> _torque_arc_coords(L, θ, τ).linewidth, θ, τ),
+        visible=lift((θ, τ) -> abs(τ) > 1e-3, θ, τ))
+
+    torque_arrow = arrows2d!(ax,
+        lift((θ, τ) -> [_torque_arc_coords(L, θ, τ).arrow_pos], θ, τ),
+        lift((θ, τ) -> [Vec2f(_torque_arc_coords(L, θ, τ).dx, _torque_arc_coords(L, θ, τ).dy)], θ, τ),
+        color=lift((θ, τ) -> _torque_arc_coords(L, θ, τ).color, θ, τ),
+        shaftwidth=lift((θ, τ) -> _torque_arc_coords(L, θ, τ).shaftwidth, θ, τ),
+        tiplength=12,
+        tipwidth=12,
+        visible=lift((θ, τ) -> abs(τ) > 1e-3, θ, τ))
     xlims!(ax, -L - 0.2, L + 0.2)
     ylims!(ax, -L - 0.2, L + 0.2)
     # display(fig)
@@ -81,12 +122,23 @@ function ClassicControlEnvironments.interactive_viz(env::PendulumEnv)
     pendulum_line = lines!(ax, @lift([Point2f(0.0, 0.0), _pendulum_coords(L, $θ)]), linewidth=4, color=:black)
     scatter!(ax, [0.0], [0.0], color=:red, markersize=15)
     mass_scatter = scatter!(ax, @lift(_pendulum_coords(L, $θ)), color=:blue, markersize=20)
-    torque_arrow = arrows!(ax,
-        lift((θ, τ) -> [Point2f(_torque_arrow_coords(L, θ, τ).mid_x, _torque_arrow_coords(L, θ, τ).mid_y)], θ, τ),
-        lift((θ, τ) -> [Vec2f(_torque_arrow_coords(L, θ, τ).dx, _torque_arrow_coords(L, θ, τ).dy)], θ, τ),
-        color=lift((θ, τ) -> _torque_arrow_coords(L, θ, τ).color, θ, τ),
-        arrowsize=lift((θ, τ) -> _torque_arrow_coords(L, θ, τ).arrowsize, θ, τ),
-        linewidth=lift((θ, τ) -> _torque_arrow_coords(L, θ, τ).linewidth, θ, τ))
+    torque_arc = arc!(ax,
+        lift((θ, τ) -> _torque_arc_coords(L, θ, τ).center, θ, τ),
+        lift((θ, τ) -> _torque_arc_coords(L, θ, τ).radius, θ, τ),
+        lift((θ, τ) -> _torque_arc_coords(L, θ, τ).start_angle, θ, τ),
+        lift((θ, τ) -> _torque_arc_coords(L, θ, τ).stop_angle, θ, τ),
+        color=lift((θ, τ) -> _torque_arc_coords(L, θ, τ).color, θ, τ),
+        linewidth=lift((θ, τ) -> _torque_arc_coords(L, θ, τ).linewidth, θ, τ),
+        visible=lift((θ, τ) -> abs(τ) > 1e-3, θ, τ))
+
+    torque_arrow = arrows2d!(ax,
+        lift((θ, τ) -> [_torque_arc_coords(L, θ, τ).arrow_pos], θ, τ),
+        lift((θ, τ) -> [Vec2f(_torque_arc_coords(L, θ, τ).dx, _torque_arc_coords(L, θ, τ).dy)], θ, τ),
+        color=lift((θ, τ) -> _torque_arc_coords(L, θ, τ).color, θ, τ),
+        shaftwidth=lift((θ, τ) -> _torque_arc_coords(L, θ, τ).shaftwidth, θ, τ),
+        tiplength=12,
+        tipwidth=12,
+        visible=lift((θ, τ) -> abs(τ) > 1e-3, θ, τ))
     xlims!(ax, -L - 0.2, L + 0.2)
     ylims!(ax, -L - 0.2, L + 0.2)
 
@@ -209,10 +261,15 @@ function ClassicControlEnvironments.plot_trajectory(env::PendulumEnv, observatio
     action_plot = scatterlines!(ax_action, actions)
 
     ax_rew = Axis(fig[3, 1], title="Reward")
-    rew_plot = scatterlines!(ax_rew, rewards, label="Total")
-    theta_rew_plot = scatterlines!(ax_rew, theta_rewards, label="Theta")
-    vel_rew_plot = scatterlines!(ax_rew, vel_rewards, label="Velocity")
-    torque_rew_plot = scatterlines!(ax_rew, torque_rewards, label="Torque")
+    # Shift rewards to align with resulting observations
+    shifted_total_rewards = [NaN; rewards]
+    shifted_theta_rewards = [NaN; theta_rewards]
+    shifted_vel_rewards = [NaN; vel_rewards]
+    shifted_torque_rewards = [NaN; torque_rewards]
+    rew_plot = scatterlines!(ax_rew, shifted_total_rewards, label="Total")
+    theta_rew_plot = scatterlines!(ax_rew, shifted_theta_rewards, label="Theta")
+    vel_rew_plot = scatterlines!(ax_rew, shifted_vel_rewards, label="Velocity")
+    torque_rew_plot = scatterlines!(ax_rew, shifted_torque_rewards, label="Torque")
     axislegend(ax_rew, location=:rb)
 
     fig
@@ -233,8 +290,8 @@ function ClassicControlEnvironments.plot_trajectory_interactive(env::PendulumEnv
     if num_steps == 0
         error("Observations array cannot be empty.")
     end
-    if num_steps != length(processed_actions_scaled)
-        error("Observations and processed actions must have the same length. Original actions length: $(length(actions)), Processed actions length: $(length(processed_actions_scaled))")
+    if num_steps != length(processed_actions_scaled) + 1
+        error("Observations must have one more element than actions. Observations length: $(num_steps), Actions length: $(length(processed_actions_scaled))")
     end
 
     # Initial state for the live visualization
@@ -290,7 +347,8 @@ function ClassicControlEnvironments.plot_trajectory_interactive(env::PendulumEnv
     function update_step!(step_idx)
         current_obs = observations[step_idx]
         current_theta = atan(current_obs[2], current_obs[1])
-        current_torque_val_scaled = processed_actions_scaled[step_idx]
+        # Handle final observation (no corresponding action)
+        current_torque_val_scaled = step_idx <= length(processed_actions_scaled) ? processed_actions_scaled[step_idx] : 0.0f0
 
         updated_problem = PendulumProblem(
             theta=Float32(current_theta),
@@ -398,8 +456,8 @@ function ClassicControlEnvironments.animate_trajectory_video(env::PendulumEnv,
     if num_steps == 0
         error("Observations array cannot be empty.")
     end
-    if num_steps != length(actions)
-        error("Observations and processed actions must have the same length. Original actions length: $(length(actions)), Processed actions length: $(length(actions))")
+    if num_steps != length(actions) + 1
+        error("Observations must have one more element than actions. Observations length: $(num_steps), Actions length: $(length(actions))")
     end
     # Initial state for the live visualization
     initial_obs = observations[1]
@@ -415,7 +473,8 @@ function ClassicControlEnvironments.animate_trajectory_video(env::PendulumEnv,
     function frame_update(step_idx)
         current_obs = observations[step_idx]
         current_theta = atan(current_obs[2], current_obs[1])
-        current_torque = actions[step_idx]
+        # Handle final observation (no corresponding action)
+        current_torque = step_idx <= length(actions) ? actions[step_idx] : 0.0f0
         updated_problem = PendulumProblem(
             theta=Float32(current_theta),
             velocity=0.0f0,
