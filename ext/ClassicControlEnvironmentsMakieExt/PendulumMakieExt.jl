@@ -6,43 +6,42 @@ function _torque_arc_coords(L, θ, τ)
     # Arc is centered at the pivot point (origin)
     center = Point2f(0.0f0, 0.0f0)
 
-    # Arc radius - smaller for pendulum, scaled by length
-    arc_radius = 0.3f0 * L
+    if abs(τ) < 1e-3
+        return nothing
+    end
 
-    # Arc span based on torque magnitude
-    arc_span = π / 4 + π / 8 * clamp(abs(τ) / 2, 0, 1)  # Between π/4 and 3π/8 radians
+    # Arc radius scales with torque magnitude
+    arc_radius = 0.15f0 + 0.1f0 * abs(τ)
 
-    # Start the arc from the current pendulum angle, going in torque direction
-    if τ > 0  # Counter-clockwise (positive torque)
-        start_angle = θ - arc_span / 2
-        stop_angle = θ + arc_span / 2
+    # Arc span based on torque magnitude (larger torque = longer arc)
+    arc_span = π / 3 + π / 6 * abs(τ)  # Between π/3 and π/2 radians
+
+    # Torque direction (positive is counter-clockwise)
+    if τ > 0
+        start_angle = -arc_span / 2
+        stop_angle = arc_span / 2
         arrow_angle = stop_angle + π / 2  # Tangent to arc (counter-clockwise)
-    else  # Clockwise (negative torque)
-        start_angle = θ + arc_span / 2
-        stop_angle = θ - arc_span / 2
+    else
+        start_angle = arc_span / 2
+        stop_angle = -arc_span / 2
         arrow_angle = stop_angle - π / 2  # Tangent to arc (clockwise)
     end
 
     # Arrow head position at the end of the arc
     arrow_head_pos = Point2f(
-        arc_radius * sin(stop_angle),
-        arc_radius * -cos(stop_angle)
+        arc_radius * cos(stop_angle),
+        arc_radius * sin(stop_angle)
     )
 
     # Arrow head direction vector (larger for visibility)
-    head_length = 0.25f0 * L
-    dx = head_length * sin(arrow_angle)
-    dy = head_length * -cos(arrow_angle)
+    head_length = 0.15f0
+    dx = head_length * cos(arrow_angle)
+    dy = head_length * sin(arrow_angle)
 
-    # Enhanced color scheme
-    color = :forestgreen
+    color = τ > 0 ? :green : :red
 
-    # Dynamic line width
-    linewidth = 2 + 2 * clamp(abs(τ) / 2, 0, 1)
-    shaftwidth = 0.01 + 0.02 * clamp(abs(τ) / 2, 0, 1)
-
-    (; center, radius=arc_radius, start_angle, stop_angle, arrow_pos=arrow_head_pos,
-        dx, dy, color, linewidth, shaftwidth)
+    return (; center, radius=arc_radius, start_angle, stop_angle,
+        arrow_pos=arrow_head_pos, dx, dy, color, torque=τ)
 end
 
 function ClassicControlEnvironments.plot(problem::PendulumProblem)
@@ -57,14 +56,15 @@ function ClassicControlEnvironments.plot(problem::PendulumProblem)
     scatter!(ax, [0.0], [0.0], color=:red, markersize=15)
     scatter!(ax, pt, color=:blue, markersize=20)
     # Torque arc and arrow - show for any non-zero torque
-    if abs(τ) > 0
-        arr = _torque_arc_coords(L, θ, τ)
+    torque_data = _torque_arc_coords(L, θ, τ)
+    if !isnothing(torque_data)
         # Draw the arc
-        arc!(ax, arr.center, arr.radius, arr.start_angle, arr.stop_angle,
-            color=arr.color, linewidth=arr.linewidth)
+        arc!(ax, torque_data.center, torque_data.radius, torque_data.start_angle, torque_data.stop_angle,
+            color=torque_data.color, linewidth=3)
         # Draw the arrow head
-        arrows2d!(ax, [arr.arrow_pos], [Vec2f(arr.dx, arr.dy)],
-            color=arr.color, shaftwidth=arr.shaftwidth, tiplength=12, tipwidth=12)
+        arrows2d!(ax, [torque_data.arrow_pos], [Vec2f(torque_data.dx, torque_data.dy)],
+            color=torque_data.color, shaftwidth=6, shaftlength=0,
+            minshaftlength=0, tiplength=15, tipwidth=15)
     end
     xlims!(ax, -L - 0.2, L + 0.2)
     ylims!(ax, -L - 0.2, L + 0.2)
@@ -75,29 +75,53 @@ function ClassicControlEnvironments.live_viz(problem::PendulumProblem)
     θ = Observable(problem.theta)
     τ = Observable(problem.torque)
     L = problem.length
-    fig = Figure(size=(400, 400))
+    fig = Figure(size=(800, 800))
     ax = Axis(fig[1, 1], aspect=1)
     pendulum_line = lines!(ax, @lift([Point2f(0.0, 0.0), _pendulum_coords(L, $θ)]), linewidth=4, color=:black)
     scatter!(ax, [0.0], [0.0], color=:red, markersize=15)
     mass_scatter = scatter!(ax, @lift(_pendulum_coords(L, $θ)), color=:blue, markersize=20)
     # Torque arc and arrow
     torque_arc = arc!(ax,
-        lift((θ, τ) -> _torque_arc_coords(L, θ, τ).center, θ, τ),
-        lift((θ, τ) -> _torque_arc_coords(L, θ, τ).radius, θ, τ),
-        lift((θ, τ) -> _torque_arc_coords(L, θ, τ).start_angle, θ, τ),
-        lift((θ, τ) -> _torque_arc_coords(L, θ, τ).stop_angle, θ, τ),
-        color=lift((θ, τ) -> _torque_arc_coords(L, θ, τ).color, θ, τ),
-        linewidth=lift((θ, τ) -> _torque_arc_coords(L, θ, τ).linewidth, θ, τ),
-        visible=lift((θ, τ) -> abs(τ) > 1e-3, θ, τ))
+        @lift(begin
+            t_data = _torque_arc_coords(L, $θ, $τ)
+            isnothing(t_data) ? Point2f(0, 0) : t_data.center
+        end),
+        @lift(begin
+            t_data = _torque_arc_coords(L, $θ, $τ)
+            isnothing(t_data) ? 0.15f0 : t_data.radius
+        end),
+        @lift(begin
+            t_data = _torque_arc_coords(L, $θ, $τ)
+            isnothing(t_data) ? 0.0f0 : t_data.start_angle
+        end),
+        @lift(begin
+            t_data = _torque_arc_coords(L, $θ, $τ)
+            isnothing(t_data) ? 0.0f0 : t_data.stop_angle
+        end),
+        color=@lift(begin
+            t_data = _torque_arc_coords(L, $θ, $τ)
+            isnothing(t_data) ? :gray : t_data.color
+        end),
+        linewidth=3,
+        visible=@lift(abs($τ) > 1e-3))
 
     torque_arrow = arrows2d!(ax,
-        lift((θ, τ) -> [_torque_arc_coords(L, θ, τ).arrow_pos], θ, τ),
-        lift((θ, τ) -> [Vec2f(_torque_arc_coords(L, θ, τ).dx, _torque_arc_coords(L, θ, τ).dy)], θ, τ),
-        color=lift((θ, τ) -> _torque_arc_coords(L, θ, τ).color, θ, τ),
-        shaftwidth=lift((θ, τ) -> _torque_arc_coords(L, θ, τ).shaftwidth, θ, τ),
-        tiplength=12,
-        tipwidth=12,
-        visible=lift((θ, τ) -> abs(τ) > 1e-3, θ, τ))
+        @lift(begin
+            t_data = _torque_arc_coords(L, $θ, $τ)
+            isnothing(t_data) ? [Point2f(0, 0)] : [t_data.arrow_pos]
+        end),
+        @lift(begin
+            t_data = _torque_arc_coords(L, $θ, $τ)
+            isnothing(t_data) ? [Vec2f(0, 0)] : [Vec2f(t_data.dx, t_data.dy)]
+        end),
+        color=@lift(begin
+            t_data = _torque_arc_coords(L, $θ, $τ)
+            isnothing(t_data) ? :gray : t_data.color
+        end),
+        shaftwidth=0.01,
+        tiplength=15,
+        tipwidth=15,
+        visible=@lift(abs($τ) > 1e-3))
     xlims!(ax, -L - 0.2, L + 0.2)
     ylims!(ax, -L - 0.2, L + 0.2)
     # display(fig)
@@ -112,33 +136,57 @@ function ClassicControlEnvironments.interactive_viz(env::PendulumEnv)
     θ = Observable(env.problem.theta)
     τ = Observable(env.problem.torque)
     dt = Observable(env.problem.dt)
-    rew = Observable(Pendulum.reward(env))
-    min_rew = Observable(Pendulum.reward(env))
+    rew = Observable(ClassicControlEnvironments.reward(env))
+    min_rew = Observable(ClassicControlEnvironments.reward(env))
     live = Observable(true)
     L = env.problem.length
 
-    fig = Figure(size=(500, 600))
+    fig = Figure(size=(600, 800))
     ax = Axis(fig[1, 1], aspect=1)
     pendulum_line = lines!(ax, @lift([Point2f(0.0, 0.0), _pendulum_coords(L, $θ)]), linewidth=4, color=:black)
     scatter!(ax, [0.0], [0.0], color=:red, markersize=15)
     mass_scatter = scatter!(ax, @lift(_pendulum_coords(L, $θ)), color=:blue, markersize=20)
     torque_arc = arc!(ax,
-        lift((θ, τ) -> _torque_arc_coords(L, θ, τ).center, θ, τ),
-        lift((θ, τ) -> _torque_arc_coords(L, θ, τ).radius, θ, τ),
-        lift((θ, τ) -> _torque_arc_coords(L, θ, τ).start_angle, θ, τ),
-        lift((θ, τ) -> _torque_arc_coords(L, θ, τ).stop_angle, θ, τ),
-        color=lift((θ, τ) -> _torque_arc_coords(L, θ, τ).color, θ, τ),
-        linewidth=lift((θ, τ) -> _torque_arc_coords(L, θ, τ).linewidth, θ, τ),
-        visible=lift((θ, τ) -> abs(τ) > 1e-3, θ, τ))
+        @lift(begin
+            t_data = _torque_arc_coords(L, $θ, $τ)
+            isnothing(t_data) ? Point2f(0, 0) : t_data.center
+        end),
+        @lift(begin
+            t_data = _torque_arc_coords(L, $θ, $τ)
+            isnothing(t_data) ? 0.15f0 : t_data.radius
+        end),
+        @lift(begin
+            t_data = _torque_arc_coords(L, $θ, $τ)
+            isnothing(t_data) ? 0.0f0 : t_data.start_angle
+        end),
+        @lift(begin
+            t_data = _torque_arc_coords(L, $θ, $τ)
+            isnothing(t_data) ? 0.0f0 : t_data.stop_angle
+        end),
+        color=@lift(begin
+            t_data = _torque_arc_coords(L, $θ, $τ)
+            isnothing(t_data) ? :gray : t_data.color
+        end),
+        linewidth=3,
+        visible=@lift(abs($τ) > 1e-3))
 
     torque_arrow = arrows2d!(ax,
-        lift((θ, τ) -> [_torque_arc_coords(L, θ, τ).arrow_pos], θ, τ),
-        lift((θ, τ) -> [Vec2f(_torque_arc_coords(L, θ, τ).dx, _torque_arc_coords(L, θ, τ).dy)], θ, τ),
-        color=lift((θ, τ) -> _torque_arc_coords(L, θ, τ).color, θ, τ),
-        shaftwidth=lift((θ, τ) -> _torque_arc_coords(L, θ, τ).shaftwidth, θ, τ),
-        tiplength=12,
-        tipwidth=12,
-        visible=lift((θ, τ) -> abs(τ) > 1e-3, θ, τ))
+        @lift(begin
+            t_data = _torque_arc_coords(L, $θ, $τ)
+            isnothing(t_data) ? [Point2f(0, 0)] : [t_data.arrow_pos]
+        end),
+        @lift(begin
+            t_data = _torque_arc_coords(L, $θ, $τ)
+            isnothing(t_data) ? [Vec2f(0, 0)] : [Vec2f(t_data.dx, t_data.dy)]
+        end),
+        color=@lift(begin
+            t_data = _torque_arc_coords(L, $θ, $τ)
+            isnothing(t_data) ? :gray : t_data.color
+        end),
+        shaftwidth=0.01,
+        tiplength=15,
+        tipwidth=15,
+        visible=@lift(abs($τ) > 1e-3))
     xlims!(ax, -L - 0.2, L + 0.2)
     ylims!(ax, -L - 0.2, L + 0.2)
 
@@ -188,7 +236,7 @@ function ClassicControlEnvironments.interactive_viz(env::PendulumEnv)
                         if auto_running[]  # Check again after sleep
                             act!(env, τ[])
                             θ[] = env.problem.theta
-                            rew[] = Pendulum.reward(env)
+                            rew[] = ClassicControlEnvironments.reward(env)
                             min_rew[] = min(min_rew[], rew[])
                         end
                     end
@@ -243,7 +291,7 @@ function ClassicControlEnvironments.plot_trajectory(env::PendulumEnv, observatio
     actions = vec(stack(actions))
     torques = actions .* 2
 
-    individual_rewards = Pendulum.pendulum_rewards.(thetas[2:end], scaled_vels[2:end], torques[1:end-1])
+    individual_rewards = ClassicControlEnvironments.pendulum_rewards.(thetas[2:end], scaled_vels[2:end], torques[1:end])
     theta_rewards = getindex.(individual_rewards, 1)
     vel_rewards = getindex.(individual_rewards, 2)
     torque_rewards = getindex.(individual_rewards, 3)
@@ -423,8 +471,7 @@ function ClassicControlEnvironments.plot_trajectory_interactive(env::PendulumEnv
     on(step_button.clicks) do n
         if !auto_playing[]  # Only allow single steps when not auto-playing
             current_step = min(trajectory_slider.value[] + 1, num_steps)
-            trajectory_slider.value[] = current_step
-            notify(trajectory_slider)
+            set_close_to!(trajectory_slider, current_step)
             update_step!(current_step)
         end
     end
@@ -432,8 +479,7 @@ function ClassicControlEnvironments.plot_trajectory_interactive(env::PendulumEnv
     # Reset button functionality
     on(reset_button.clicks) do n
         if !auto_playing[]  # Only allow reset when not auto-playing
-            trajectory_slider.value[] = 1
-            notify(trajectory_slider)
+            set_close_to!(trajectory_slider, 1)
             update_step!(1)
         end
     end

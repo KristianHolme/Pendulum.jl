@@ -71,7 +71,7 @@ function ClassicControlEnvironments.plot(problem::MountainCarProblem)
     if abs(problem.force) > 1e-3
         arrow_data = _force_arrow_coords(problem)
         arrows2d!(ax, [arrow_data.car_pos], [Vec2f(arrow_data.dx, arrow_data.dy)],
-            color=arrow_data.color, shaftwidth=0.015)
+            color=arrow_data.color, shaftwidth=0.05)
     end
 
     # Labels and formatting
@@ -183,11 +183,21 @@ function ClassicControlEnvironments.interactive_viz(env::ClassicControlEnvironme
     rew_bar = barplot!(rew_ax, 1, rew)
     colsize!(fig.layout, 2, Relative(0.25))
 
-    # Control slider
-    sg = SliderGrid(fig[2, 1],
-        (label="Force", range=-1.0:0.01:1.0, startvalue=0.0),
-        width=Relative(0.9)
-    )
+    # Control slider - different setup for discrete vs continuous
+    is_discrete = DRiL.action_space(env) isa DRiL.Discrete
+    if is_discrete
+        # Discrete: slider with 3 values corresponding to forces -1, 0, 1
+        sg = SliderGrid(fig[2, 1],
+            (label="Force", range=[-1.0, 0.0, 1.0], startvalue=0.0),
+            width=Relative(0.9)
+        )
+    else
+        # Continuous: full range slider
+        sg = SliderGrid(fig[2, 1],
+            (label="Force", range=-1.0:0.01:1.0, startvalue=0.0),
+            width=Relative(0.9)
+        )
+    end
     force_slider = sg.sliders[1]
 
     # Control buttons
@@ -198,6 +208,16 @@ function ClassicControlEnvironments.interactive_viz(env::ClassicControlEnvironme
     reset_button = Button(button_grid[1, 4], label="Reset", tellwidth=false)
 
     current_task = Ref{Union{Task,Nothing}}(nothing)
+
+    # Helper function to convert force to action
+    function force_to_action(force_val)
+        if is_discrete
+            # Convert force to discrete action: -1 -> 0, 0 -> 1, 1 -> 2
+            return force_val == -1.0 ? 0 : (force_val == 0.0 ? 1 : 2)
+        else
+            return force_val
+        end
+    end
 
     # Slider updates
     on(force_slider.value) do val
@@ -216,7 +236,8 @@ function ClassicControlEnvironments.interactive_viz(env::ClassicControlEnvironme
                     while auto_running[]
                         sleep(0.05)  # ~20 FPS
                         if auto_running[]
-                            act!(env, force[])
+                            action = force_to_action(force[])
+                            act!(env, action)
                             position[] = env.problem.position
                             velocity[] = env.problem.velocity
                             rew[] = ClassicControlEnvironments.reward(env)
@@ -256,7 +277,8 @@ function ClassicControlEnvironments.interactive_viz(env::ClassicControlEnvironme
     # Single step
     on(step_button.clicks) do n
         if !auto_running[]
-            act!(env, force[])
+            action = force_to_action(force[])
+            act!(env, action)
             position[] = env.problem.position
             velocity[] = env.problem.velocity
             rew[] = ClassicControlEnvironments.reward(env)
