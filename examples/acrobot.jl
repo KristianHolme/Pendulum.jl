@@ -1,6 +1,7 @@
 using ClassicControlEnvironments
 using DRiL
 using WGLMakie
+using Zygote
 ## setup env, alg, policy and agent
 alg = PPO()
 acrobotenv = BroadcastedParallelEnv([AcrobotEnv() for _ in 1:8])
