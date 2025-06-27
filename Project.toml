@@ -15,8 +15,8 @@ Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 ClassicControlEnvironmentsMakieExt = "Makie"
 
 [compat]
+Makie = "0.24"
 Reexport = "1.2.2"
-Makie = "0.23"
 julia = "1.11"
 
 [extras]
